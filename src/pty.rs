@@ -34,9 +34,15 @@ const READ_BUF: usize = 8 * 1024;
 const OUTPUT_DEPTH: usize = 64;
 const INPUT_DEPTH: usize = 64;
 
+/// The master side of the pty, until the shell exits.
+///
+/// `None` once the waiter thread has closed it. See [`spawn_waiter`]: closing
+/// the master is what delivers EOF on Windows, so it cannot outlive the child.
+type Master = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
+
 /// A live shell attached to a pty.
 pub struct Pty {
-    master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
+    master: Master,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
     input: mpsc::Sender<Bytes>,
 }
@@ -123,7 +129,7 @@ pub fn spawn(shell: &Shell, size: Size) -> Result<Session> {
     let killer = child.clone_killer();
     let reader = pair.master.try_clone_reader().map_err(Error::pty)?;
     let writer = pair.master.take_writer().map_err(Error::pty)?;
-    let master = Arc::new(Mutex::new(pair.master));
+    let master: Master = Arc::new(Mutex::new(Some(pair.master)));
 
     let (output_tx, output) = mpsc::channel::<Bytes>(OUTPUT_DEPTH);
     let (input, input_rx) = mpsc::channel::<Bytes>(INPUT_DEPTH);
@@ -131,7 +137,7 @@ pub fn spawn(shell: &Shell, size: Size) -> Result<Session> {
 
     spawn_reader(reader, output_tx);
     spawn_writer(writer, input_rx);
-    spawn_waiter(child, exit_tx);
+    spawn_waiter(child, exit_tx, Arc::clone(&master));
 
     Ok(Session {
         pty: Pty {
@@ -186,14 +192,39 @@ fn spawn_writer(mut writer: Box<dyn Write + Send>, mut rx: mpsc::Receiver<Bytes>
     });
 }
 
-/// Reap the child and report its status. Without this the process would linger
-/// as a zombie on Unix after exiting.
-fn spawn_waiter(mut child: Box<dyn Child + Send + Sync>, tx: oneshot::Sender<ExitStatus>) {
+/// Reap the child, close the pty, and report the exit status.
+///
+/// Two jobs, and the second one is the subtle one.
+///
+/// Reaping stops the process lingering as a zombie on Unix.
+///
+/// Closing the master is what makes the reader thread see EOF **on Windows**.
+/// Unix and Windows disagree here, and the disagreement is easy to miss:
+///
+/// * On Unix, the child exiting closes the last slave fd, and the reader gets a
+///   clean EOF by itself. Dropping the master here is merely tidy.
+/// * On Windows, ConPTY keeps its output pipe open for as long as the
+///   pseudoconsole object exists, no matter that the child is long gone. The
+///   reader would block forever, the session would never end, and the socket
+///   would hang open. Dropping the master closes the pseudoconsole, and *that*
+///   is what delivers EOF.
+///
+/// So the master must not outlive the child. This is the Windows counterpart to
+/// dropping the slave immediately after spawn, and it is just as load-bearing.
+fn spawn_waiter(
+    mut child: Box<dyn Child + Send + Sync>,
+    tx: oneshot::Sender<ExitStatus>,
+    master: Master,
+) {
     std::thread::spawn(move || {
         let status = child
             .wait()
             .unwrap_or_else(|_| ExitStatus::with_exit_code(1));
         tracing::debug!(code = status.exit_code(), "shell exited");
+
+        // The child is gone: close the pty so the reader can finish.
+        drop(master.lock().take());
+
         // Receiver may be gone if the socket closed first; nothing to do.
         let _ = tx.send(status);
     });
@@ -210,11 +241,17 @@ impl Pty {
 
     /// Resize the pty. Delivers SIGWINCH on Unix; resizes the ConPTY buffer on
     /// Windows. Full-screen apps like vim redraw off the back of this.
+    ///
+    /// A resize that arrives after the shell has already exited is a no-op, not
+    /// an error: the browser cannot know the shell died a millisecond ago, and
+    /// failing here would turn a harmless race into a dead session.
     pub fn resize(&self, size: Size) -> Result<()> {
-        self.master
-            .lock()
-            .resize(size.sanitized().to_pty_size())
-            .map_err(Error::pty)
+        match self.master.lock().as_ref() {
+            Some(master) => master
+                .resize(size.sanitized().to_pty_size())
+                .map_err(Error::pty),
+            None => Ok(()),
+        }
     }
 
     /// Kill the shell.

@@ -28,10 +28,41 @@ async fn connect(server: &common::Server) -> Socket {
         .headers_mut()
         .insert(header::ORIGIN, server.origin().parse().expect("origin"));
 
-    let (socket, _) = tokio_tungstenite::connect_async(request)
+    let (mut socket, _) = tokio_tungstenite::connect_async(request)
         .await
         .expect("websocket upgrade accepted");
+
+    wait_for_prompt(&mut socket).await;
     socket
+}
+
+/// Do not type until the shell is listening.
+///
+/// `/bin/sh` is ready more or less instantly, but `cmd.exe` under ConPTY is not
+/// reading input the moment ConPTY hands it to us, and keystrokes sent before
+/// it is listening are simply dropped on the floor. Every test here then waits
+/// ten seconds for output that can never arrive. Wait for the prompt, exactly
+/// as a person would.
+async fn wait_for_prompt(socket: &mut Socket) {
+    let seen = tokio::time::timeout(Duration::from_secs(15), async {
+        let mut seen = String::new();
+        while let Some(Ok(msg)) = socket.next().await {
+            if let Message::Binary(bytes) = msg {
+                seen.push_str(&String::from_utf8_lossy(&bytes));
+                if seen.contains(common::PROMPT) {
+                    return seen;
+                }
+            }
+        }
+        seen
+    })
+    .await
+    .expect("timed out waiting for the shell's prompt");
+
+    assert!(
+        seen.contains(common::PROMPT),
+        "the shell never printed a prompt; saw: {seen:?}"
+    );
 }
 
 /// Accumulate terminal output until `needle` shows up, or fail on timeout.
