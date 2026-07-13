@@ -1,6 +1,8 @@
 <div align="center">
 
-# ▚ facet
+<img src="docs/media/logo.svg" alt="" width="46">
+
+# facet
 
 **A single-binary web terminal. Your shell, in a browser, behind real authentication.**
 
