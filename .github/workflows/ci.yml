@@ -54,10 +54,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # The integration tests spawn real shells on real PTYs and bind real
-      # ports. Single-threaded would serialise them for no benefit, but a
-      # runaway test must not hang the job for six hours.
+      # ports, so a runaway test must not hang the job for six hours.
+      #
+      # --no-fail-fast matters more than it looks: without it cargo stops at the
+      # first failing test *binary*, which on Windows meant one failure in
+      # tests/auth.rs hid the results of pty.rs, ws_bridge.rs and terminals.rs
+      # entirely. When a platform breaks we want the whole picture, not the
+      # first symptom.
       - name: cargo test
-        run: cargo test --all-features --locked
+        run: cargo test --all-features --locked --no-fail-fast
         timeout-minutes: 15
 
   # The Dockerfile is a supported way to run facet, so a change that breaks it
@@ -76,9 +81,18 @@ jobs:
           cache-to: type=gha,mode=max
 
   # Dependencies for a program that hands out a shell deserve a look.
+  #
+  # Suppressions live in .cargo/audit.toml, and each one has to justify itself
+  # in writing. Today that is RUSTSEC-2023-0071 (the `rsa` Marvin attack), which
+  # is unreachable here because facet only ever signs HS256.
   audit:
     name: cargo audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The action publishes its findings as a check run, which the default
+      # read-only token cannot do.
+      checks: write
     steps:
       - uses: actions/checkout@v5
       - uses: rustsec/audit-check@v2

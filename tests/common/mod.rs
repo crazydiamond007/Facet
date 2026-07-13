@@ -158,6 +158,18 @@ pub async fn session_cookie(client: &reqwest::Client, server: &Server) -> String
         .expect("session cookie in the response")
 }
 
+/// A character that appears in the shell's prompt, and therefore means "the
+/// shell has started and is listening".
+///
+/// Typing before the prompt arrives can lose the keystrokes. `/bin/sh` is ready
+/// more or less instantly, but `cmd.exe` under ConPTY takes a moment to start
+/// reading, and a test that types into the void just sits there until it times
+/// out. Wait for the prompt, exactly as a person would.
+#[cfg(windows)]
+pub const PROMPT: &str = ">";
+#[cfg(not(windows))]
+pub const PROMPT: &str = "$";
+
 /// Lines to type so the shell prints `<marker>42`.
 ///
 /// The point is that the *output* differs textually from the keystrokes. A pty

@@ -81,6 +81,26 @@ async fn ws_is_accepted_with_a_valid_token() {
     assert_eq!(response.status().as_u16(), 101);
 
     // And it is a real shell on the other end, not just an accepted socket.
+
+    // Wait for the prompt before typing. See `common::PROMPT`: cmd.exe is not
+    // reading input the instant ConPTY hands it to us, and keystrokes sent
+    // before it is ready are simply lost.
+    let ready = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut seen = String::new();
+        while let Some(Ok(msg)) = socket.next().await {
+            if let tokio_tungstenite::tungstenite::Message::Binary(bytes) = msg {
+                seen.push_str(&String::from_utf8_lossy(&bytes));
+                if seen.contains(common::PROMPT) {
+                    return true;
+                }
+            }
+        }
+        false
+    })
+    .await
+    .expect("timed out waiting for the shell's prompt");
+    assert!(ready, "the shell never printed a prompt");
+
     for line in common::arithmetic_probe("A") {
         socket
             .send(tokio_tungstenite::tungstenite::Message::Binary(
