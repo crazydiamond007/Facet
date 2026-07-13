@@ -89,6 +89,15 @@ async fn ws_is_accepted_with_a_valid_token() {
         let mut seen = String::new();
         while let Some(Ok(msg)) = socket.next().await {
             if let tokio_tungstenite::tungstenite::Message::Binary(bytes) = msg {
+                // ConPTY will not run the shell until it is told where the
+                // cursor is; a real terminal answers by reflex. See common::DSR.
+                if common::wants_cursor_report(&bytes) {
+                    let _ = socket
+                        .send(tokio_tungstenite::tungstenite::Message::Binary(
+                            common::DSR_REPLY.into(),
+                        ))
+                        .await;
+                }
                 seen.push_str(&String::from_utf8_lossy(&bytes));
                 if seen.contains(common::PROMPT) {
                     return true;

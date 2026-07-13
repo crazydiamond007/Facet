@@ -48,6 +48,7 @@ async fn wait_for_prompt(socket: &mut Socket) {
         let mut seen = String::new();
         while let Some(Ok(msg)) = socket.next().await {
             if let Message::Binary(bytes) = msg {
+                answer_cursor_query(socket, &bytes).await;
                 seen.push_str(&String::from_utf8_lossy(&bytes));
                 if seen.contains(common::PROMPT) {
                     return seen;
@@ -65,13 +66,24 @@ async fn wait_for_prompt(socket: &mut Socket) {
     );
 }
 
+/// Answer ConPTY's cursor-position query, exactly as the browser's terminal
+/// emulator does. Without it, ConPTY never lets the shell run. See `common::DSR`.
+async fn answer_cursor_query(socket: &mut Socket, chunk: &[u8]) {
+    if common::wants_cursor_report(chunk) {
+        let _ = socket.send(Message::Binary(common::DSR_REPLY.into())).await;
+    }
+}
+
 /// Accumulate terminal output until `needle` shows up, or fail on timeout.
 async fn read_until(socket: &mut Socket, needle: &str) -> String {
     let search = async {
         let mut seen = String::new();
         while let Some(Ok(msg)) = socket.next().await {
             match msg {
-                Message::Binary(bytes) => seen.push_str(&String::from_utf8_lossy(&bytes)),
+                Message::Binary(bytes) => {
+                    answer_cursor_query(socket, &bytes).await;
+                    seen.push_str(&String::from_utf8_lossy(&bytes));
+                }
                 Message::Close(_) => break,
                 _ => continue,
             }

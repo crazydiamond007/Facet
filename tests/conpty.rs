@@ -18,13 +18,21 @@ use facet::pty::{self, Size};
 
 #[tokio::test]
 async fn conpty_delivers_output_and_then_eof() {
-    let session = pty::spawn(&common::oneshot_shell("echo hello"), Size::default()).expect("spawn");
+    let mut session =
+        pty::spawn(&common::oneshot_shell("echo hello"), Size::default()).expect("spawn");
 
-    let mut output = session.output;
     let mut bytes = Vec::new();
 
     let reached_eof = tokio::time::timeout(Duration::from_secs(15), async {
-        while let Some(chunk) = output.recv().await {
+        while let Some(chunk) = session.output.recv().await {
+            // Behave like a terminal: ConPTY will not run the shell until it is
+            // told where the cursor is. See common::DSR.
+            if common::wants_cursor_report(&chunk) {
+                let _ = session
+                    .pty
+                    .write(bytes::Bytes::from_static(common::DSR_REPLY))
+                    .await;
+            }
             bytes.extend_from_slice(&chunk);
         }
     })

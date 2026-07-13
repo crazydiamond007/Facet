@@ -158,6 +158,33 @@ pub async fn session_cookie(client: &reqwest::Client, server: &Server) -> String
         .expect("session cookie in the response")
 }
 
+/// ConPTY's cursor-position query, and the answer it is waiting for.
+///
+/// `portable-pty` creates the pseudoconsole with `PSUEDOCONSOLE_INHERIT_CURSOR`,
+/// so the very first thing ConPTY does is emit DSR (`ESC[6n`), meaning "terminal,
+/// where is your cursor?". It then **will not proceed until something answers**.
+/// The shell never runs, not one byte of output is produced, and every test sits
+/// there until it times out.
+///
+/// A real terminal answers by reflex: xterm.js replies with `ESC[<row>;<col>R`
+/// without being asked to, which is why the browser works. A test harness is not
+/// a terminal, so it has to answer by hand.
+///
+/// The reply must come from exactly one place. ConPTY consumes the first answer
+/// as the cursor report; a second one would be passed through to the shell and
+/// typed at the prompt as garbage. In production that one place is the browser.
+/// In tests it is us.
+///
+/// On Unix this never fires: there is no ConPTY and no DSR, so the check below
+/// simply never matches.
+pub const DSR: &[u8] = b"\x1b[6n";
+pub const DSR_REPLY: &[u8] = b"\x1b[1;1R";
+
+/// True if ConPTY is waiting on a cursor report.
+pub fn wants_cursor_report(chunk: &[u8]) -> bool {
+    chunk.windows(DSR.len()).any(|window| window == DSR)
+}
+
 /// A character that appears in the shell's prompt, and therefore means "the
 /// shell has started and is listening".
 ///
