@@ -99,9 +99,12 @@ pub async fn submit(
                 session: jti.clone(),
             });
 
+            // The CSRF cookie is spent. Delete it through the same builder that
+            // created it: a removal whose attributes do not match the original
+            // (here, `Path=/`) targets a different cookie and does nothing.
             let jar = jar
                 .add(session_cookie(&state, token))
-                .remove(Cookie::from(CSRF_COOKIE));
+                .remove(csrf_cookie(&state, String::new()));
 
             (jar, Redirect::to("/")).into_response()
         }
@@ -140,9 +143,13 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
         });
     }
 
-    let mut cookie = Cookie::from(state.auth.cookie_name());
-    cookie.set_path("/");
-    (jar.remove(cookie), Redirect::to("/login")).into_response()
+    // The removal must carry the *same attributes* as the cookie it deletes.
+    // See `session_cookie`: get this wrong and logout silently does nothing.
+    (
+        jar.remove(session_cookie(&state, String::new())),
+        Redirect::to("/login"),
+    )
+        .into_response()
 }
 
 /// Re-render the login page with an error banner.
@@ -165,12 +172,28 @@ fn error_page(state: &AppState, jar: CookieJar, status: StatusCode, message: &st
     (status, jar, Html(html)).into_response()
 }
 
+/// The session cookie, attributes and all.
+///
+/// **One function builds it and one function deletes it, on purpose.** A cookie
+/// is deleted by re-sending it with the same attributes and an expiry in the
+/// past, and if any attribute differs the browser treats it as a *different*
+/// cookie and quietly ignores the deletion.
+///
+/// That is not a theoretical risk here, it is a bug we shipped. Under TLS the
+/// cookie is named `__Host-facet_session`, and the `__Host-` prefix is enforced
+/// by the browser: a `Set-Cookie` carrying that prefix without `Secure`, or with
+/// a `Domain`, or with a `Path` other than `/`, is rejected outright. Logout was
+/// hand-rolling a bare cookie with only `Path` set, so the browser threw the
+/// deletion away, the session survived, and the sign out button did nothing at
+/// all. The hardening measure broke the thing it was hardening.
+///
+/// So the attributes live here, once, and both callers go through them.
 fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(state.auth.cookie_name(), token);
     cookie.set_http_only(true); // JS cannot read it, so XSS cannot steal it
-    cookie.set_secure(state.auth.secure_cookies());
+    cookie.set_secure(state.auth.secure_cookies()); // required by the __Host- prefix
     cookie.set_same_site(SameSite::Strict); // no cross-site request carries it
-    cookie.set_path("/");
+    cookie.set_path("/"); // required by the __Host- prefix
     cookie.set_max_age(
         time::Duration::try_from(state.auth.session_ttl()).unwrap_or(time::Duration::HOUR),
     );
