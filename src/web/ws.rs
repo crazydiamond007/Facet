@@ -40,10 +40,12 @@ enum ClientMsg {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ServerMsg {
-    /// Sent first. Tells the client which terminal it got. It may have asked
-    /// for a new one, or reattached to an existing one.
+    /// Sent first. Tells the client which terminal it got (it may have asked for
+    /// a new one, or reattached to an existing one) and which shell is running
+    /// in it, so the status bar reports the truth rather than a guess.
     Attached {
         terminal: String,
+        shell: String,
         replayed: usize,
     },
     Exit {
@@ -222,7 +224,14 @@ async fn bridge(
         "attached"
     );
 
-    let result = pump(socket, &terminal, attachment, &_closed).await;
+    let result = pump(
+        socket,
+        &terminal,
+        &state.config.shell.program,
+        attachment,
+        &_closed,
+    )
+    .await;
 
     // Dropping `attachment` (inside `pump`) detaches but leaves the shell
     // running, which is the whole point: the next connection reattaches.
@@ -232,6 +241,7 @@ async fn bridge(
 async fn pump(
     socket: WebSocket,
     terminal: &Terminal,
+    shell: &str,
     mut attachment: Attachment,
     closed: &TerminalClosed,
 ) -> Result<()> {
@@ -243,6 +253,7 @@ async fn pump(
     let replay = std::mem::take(&mut attachment.replay);
     let announce = ServerMsg::Attached {
         terminal: terminal.id.clone(),
+        shell: shell.to_owned(),
         replayed: replay.len(),
     };
 

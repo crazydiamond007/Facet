@@ -1,0 +1,107 @@
+/* facet: the design tokens, shared by the login page and the terminal.
+ *
+ * JetBrains Mono is vendored into the binary rather than loaded from Google
+ * Fonts. Two reasons, and both are load-bearing:
+ *
+ *   1. The Content-Security-Policy is `default-src 'none'` with `font-src
+ *      'self'`. A CDN font would simply be blocked.
+ *   2. "One self-contained binary" is the whole premise. A UI that phones a CDN
+ *      on load is not self-contained, and would not render at all on the
+ *      air-gapped or tunnel-only machines this is built for.
+ *
+ * The design also called for a Nerd Font, for powerline glyphs in the prompt.
+ * That is deliberately not vendored: those glyphs come from whatever the user's
+ * own shell emits, the fonts are several megabytes, and the terminal renders
+ * the bytes the shell actually sends rather than a mock-up of them.
+ */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/vendor/fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/vendor/fonts/jetbrains-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/vendor/fonts/jetbrains-mono-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* surfaces */
+  --bg: #0b0d10;
+  --panel: #0f1216;
+  --line: #1e242b;
+  --line-strong: #262c33;
+
+  /* text */
+  --fg: #cfe8d0;
+  --dim: #6b8a6f;
+  --faint: #4d5359;
+
+  /* accents */
+  --green: #5fd75f;
+  --green-soft: #8ae08a;
+  --red: #ea6962;
+  --orange: #e78a4e;
+  --blue: #7daea3;
+  --aqua: #89b482;
+  --magenta: #d3869b;
+
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+}
+
+::selection {
+  background: rgb(95 215 95 / 0.28);
+  color: #d6f5d6;
+}
+
+:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 1px;
+}
+
+/* Scrollbars, so the terminal's own scrollback matches the chrome. */
+* {
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 2px solid var(--panel);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

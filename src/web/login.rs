@@ -19,6 +19,12 @@ use crate::web::limit::client_ip;
 const CSRF_COOKIE: &str = "facet_csrf";
 const CSRF_FIELD: &str = "__CSRF_TOKEN__";
 
+/// The page renders one of three cards. Which one is the server's decision, not
+/// something the browser should infer by pattern-matching an error message: the
+/// lockout card is only honest if the server actually locked us out.
+const STATE_FIELD: &str = "__STATE__";
+const LOCK_FIELD: &str = "__LOCK_SECONDS__";
+
 /// Deliberately identical for every failure mode. Telling the user "wrong TOTP"
 /// would confirm they had already guessed the password.
 const GENERIC_FAILURE: &str = "Incorrect password or code.";
@@ -41,7 +47,11 @@ pub async fn page(State(state): State<AppState>, jar: CookieJar) -> Response {
         return (StatusCode::INTERNAL_SERVER_ERROR, "login unavailable").into_response();
     };
 
-    let html = String::from_utf8_lossy(&page).replace(CSRF_FIELD, &token);
+    let html = String::from_utf8_lossy(&page)
+        .replace(CSRF_FIELD, &token)
+        .replace(STATE_FIELD, "login")
+        .replace(LOCK_FIELD, "0");
+
     let jar = jar.add(csrf_cookie(&state, token));
 
     (jar, Html(html)).into_response()
@@ -115,13 +125,7 @@ pub async fn submit(
                 reason: "locked_out",
             });
 
-            let minutes = retry_after.as_secs().div_ceil(60);
-            error_page(
-                &state,
-                jar,
-                StatusCode::TOO_MANY_REQUESTS,
-                &format!("Too many failed attempts. Try again in {minutes} minute(s)."),
-            )
+            locked_page(&state, jar, StatusCode::TOO_MANY_REQUESTS, retry_after)
         }
 
         failure => {
@@ -159,12 +163,42 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
 /// would fail CSRF on every retry, locking the user out with a confusing
 /// "session expired" instead of letting them fix their typo.
 fn error_page(state: &AppState, jar: CookieJar, status: StatusCode, message: &str) -> Response {
+    render(state, jar, status, message, "login", 0)
+}
+
+/// The lockout card, with the countdown the server actually intends to enforce.
+fn locked_page(
+    state: &AppState,
+    jar: CookieJar,
+    status: StatusCode,
+    retry_after: std::time::Duration,
+) -> Response {
+    render(
+        state,
+        jar,
+        status,
+        "Too many failed attempts.",
+        "locked",
+        retry_after.as_secs(),
+    )
+}
+
+fn render(
+    state: &AppState,
+    jar: CookieJar,
+    status: StatusCode,
+    message: &str,
+    page_state: &str,
+    lock_seconds: u64,
+) -> Response {
     let (Some(token), Some(page)) = (random_token(), super::assets::raw("login.html")) else {
         return (StatusCode::INTERNAL_SERVER_ERROR, "login unavailable").into_response();
     };
 
     let html = String::from_utf8_lossy(&page)
         .replace(CSRF_FIELD, &token)
+        .replace(STATE_FIELD, page_state)
+        .replace(LOCK_FIELD, &lock_seconds.to_string())
         .replace("__ERROR__", &html_escape(message));
 
     let jar = jar.add(csrf_cookie(state, token));

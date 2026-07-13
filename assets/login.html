@@ -5,47 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <title>Sign in to facet</title>
+    <link rel="stylesheet" href="/assets/theme.css" />
     <link rel="stylesheet" href="/assets/login.css" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><rect x='2' y='4' width='20' height='16' rx='2.5' stroke='%235fd75f' stroke-width='1.6'/><path d='M6 9.5 L9.6 12 L6 14.5' stroke='%235fd75f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/><rect x='11.4' y='13.3' width='6.2' height='1.8' rx='0.6' fill='%235fd75f'/></svg>"
+    />
   </head>
-  <body>
-    <main class="card">
-      <h1><span class="mark">▚</span> facet</h1>
-      <p class="sub">Sign in to open a terminal.</p>
 
-      <!-- __ERROR__ is replaced server-side, and HTML-escaped on the way in. -->
-      <div class="error" hidden>__ERROR__</div>
+  <!-- The server stamps the state here. __STATE__ is "login" normally and
+       "locked" when the account is locked out, so the locked card is driven by
+       what the server actually decided rather than by guessing at a message. -->
+  <body data-state="__STATE__" data-lock-seconds="__LOCK_SECONDS__">
+    <main class="auth">
+      <header class="brand">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2.5" stroke="currentColor" stroke-width="1.6" />
+          <path d="M6 9.5 L9.6 12 L6 14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <rect x="11.4" y="13.3" width="6.2" height="1.8" rx="0.6" fill="currentColor" />
+        </svg>
+        <span class="wordmark">FACET</span>
+      </header>
+      <p class="tagline">self-hosted shell access</p>
 
-      <form method="post" action="/login" autocomplete="off">
-        <!-- Double-submit CSRF token; must match the facet_csrf cookie. -->
+      <!-- One form, submitted once, carrying both factors.
+           The two "steps" below are a UI affordance, not two requests: the
+           server evaluates password and code together, which is what keeps a
+           wrong password from being measurably faster than a wrong code. -->
+      <form id="form" method="post" action="/login" autocomplete="off">
         <input type="hidden" name="csrf" value="__CSRF_TOKEN__" />
 
-        <label for="password">Password</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autocomplete="current-password"
-          required
-          autofocus
-        />
+        <!-- step 1 -->
+        <section class="card" id="step-password">
+          <div class="card-head">
+            <span>AUTHENTICATE</span>
+            <span class="online">● service online</span>
+          </div>
+          <div class="card-body">
+            <label for="password">password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="••••••••••"
+              autocomplete="current-password"
+              spellcheck="false"
+              required
+              autofocus
+            />
 
-        <label for="code">Authenticator code</label>
-        <input
-          id="code"
-          name="code"
-          type="text"
-          inputmode="numeric"
-          pattern="[0-9]{6}"
-          maxlength="6"
-          placeholder="000000"
-          autocomplete="one-time-code"
-          required
-        />
+            <p class="error" id="password-error" hidden></p>
 
-        <button type="submit">Sign in</button>
+            <button type="button" id="continue" class="primary">continue →</button>
+
+            <div class="card-foot">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="9" rx="1" stroke="currentColor" stroke-width="1.6" />
+                <path d="M8 11 V7 a4 4 0 0 1 8 0 V11" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+              <span id="transport" class="good">TLS</span>
+              <span class="sep">·</span>
+              <span id="origin"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- step 2 -->
+        <section class="card" id="step-code" hidden>
+          <div class="card-head">
+            <span>TWO-FACTOR</span>
+            <span class="muted">step 2 / 2</span>
+          </div>
+          <div class="card-body">
+            <label for="code">authenticator code</label>
+
+            <!-- The cells are decoration over one real input: six separate
+                 fields would fight the password manager and the paste buffer. -->
+            <div class="cells" id="cells" aria-hidden="true">
+              <span class="cell"></span><span class="cell"></span><span class="cell"></span>
+              <span class="cell"></span><span class="cell"></span><span class="cell"></span>
+            </div>
+            <input
+              id="code"
+              name="code"
+              class="code-input"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              autocomplete="one-time-code"
+              spellcheck="false"
+              required
+            />
+
+            <p class="error" id="code-error" hidden>__ERROR__</p>
+
+            <button type="submit" class="primary">authenticate →</button>
+
+            <div class="card-foot">
+              <button type="button" id="back" class="link">← back</button>
+              <span class="grow"></span>
+              <span>time-based · 30s window</span>
+            </div>
+          </div>
+        </section>
       </form>
+
+      <!-- locked -->
+      <section class="card locked" id="step-locked" hidden>
+        <div class="card-head bad">
+          <span>● LOCKED</span>
+          <span class="muted">rate-limited</span>
+        </div>
+        <div class="card-body">
+          <p class="locked-title">too many failed attempts</p>
+          <p class="countdown" id="countdown">—</p>
+          <div class="card-foot column">
+            <span class="muted">the lockout is global, and it is deliberate</span>
+            <span>a wrong password never spends one of your TOTP codes</span>
+          </div>
+          <button type="button" id="relogin" class="link back">← return to login</button>
+        </div>
+      </section>
+
+      <p class="hint">
+        first run? run <code>facet setup</code>
+      </p>
     </main>
+
     <script src="/assets/login.js"></script>
   </body>
 </html>

@@ -238,3 +238,68 @@ async fn the_spent_csrf_cookie_is_deleted_on_a_successful_login() {
         "the CSRF cookie was set with Path=/, so its deletion needs it too: {deletion}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// The UI's server-side contract
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn the_login_page_is_stamped_with_its_state() {
+    // The page renders one of three cards, and which one is the *server's*
+    // decision. If the browser had to infer "locked" by pattern-matching an
+    // error message, the lockout card would be a guess dressed up as a fact.
+    let server = common::serve_default().await;
+    let client = common::client();
+
+    let html = client
+        .get(format!("http://{}/login", server.addr))
+        .send()
+        .await
+        .expect("GET /login")
+        .text()
+        .await
+        .expect("body");
+
+    assert!(html.contains(r#"data-state="login""#), "state not stamped");
+    assert!(
+        !html.contains("__STATE__") && !html.contains("__LOCK_SECONDS__"),
+        "a placeholder reached the browser unreplaced"
+    );
+}
+
+#[tokio::test]
+async fn a_lockout_stamps_the_locked_state_and_a_real_countdown() {
+    let (mut config, secret) = common::test_config(common::interactive_shell());
+    if let Some(auth) = config.auth.as_mut() {
+        auth.max_failed_attempts = 2;
+        auth.lockout_minutes = 15;
+    }
+    let server = common::serve(config, secret).await;
+    let client = common::client();
+
+    for _ in 0..2 {
+        common::login_with(&client, &server, "wrong", "000000").await;
+    }
+
+    let response = common::login_with(&client, &server, "wrong", "000000").await;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let html = response.text().await.expect("body");
+    assert!(
+        html.contains(r#"data-state="locked""#),
+        "the locked card was not selected by the server"
+    );
+
+    // The countdown has to come from the server's real remaining lockout, not a
+    // number the page made up.
+    let marker = r#"data-lock-seconds=""#;
+    let start = html.find(marker).expect("lock seconds") + marker.len();
+    let seconds: u64 = html[start..start + html[start..].find('"').expect("quote")]
+        .parse()
+        .expect("lock seconds is a number");
+
+    assert!(
+        seconds > 60 && seconds <= 15 * 60,
+        "expected a remaining lockout near 15 minutes, got {seconds}s"
+    );
+}

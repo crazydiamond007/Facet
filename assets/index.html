@@ -6,30 +6,59 @@
     <meta name="color-scheme" content="dark" />
     <title>facet</title>
     <link rel="stylesheet" href="/assets/vendor/xterm.css" />
+    <link rel="stylesheet" href="/assets/theme.css" />
     <link rel="stylesheet" href="/assets/app.css" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><rect x='2' y='4' width='20' height='16' rx='2.5' stroke='%235fd75f' stroke-width='1.6'/><path d='M6 9.5 L9.6 12 L6 14.5' stroke='%235fd75f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/><rect x='11.4' y='13.3' width='6.2' height='1.8' rx='0.6' fill='%235fd75f'/></svg>"
+    />
   </head>
   <body>
-    <header class="bar">
-      <span class="brand">▚ facet</span>
-
-      <nav id="tabs" class="tabs">
-        <button id="new-tab" class="new-tab" title="New terminal (Ctrl+Shift+T)">+</button>
-      </nav>
-
-      <span id="status" class="status" data-state="connecting">connecting</span>
-      <span class="spacer"></span>
-      <span id="toast" class="toast" hidden></span>
-      <span class="hint">
-        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copy·paste
-        · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> new
-      </span>
-      <form method="post" action="/logout" class="logout">
-        <button type="submit" title="Sign out">sign out</button>
+    <!-- top bar -->
+    <header class="chrome">
+      <svg class="lock" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5" y="11" width="14" height="9" rx="1" stroke="currentColor" stroke-width="1.6" />
+        <path d="M8 11 V7 a4 4 0 0 1 8 0 V11" stroke="currentColor" stroke-width="1.6" />
+      </svg>
+      <div class="address">
+        <span class="scheme" id="scheme"></span><span class="host" id="host"></span><span class="path">/facet</span>
+      </div>
+      <form method="post" action="/logout" class="signout">
+        <button type="submit">sign out</button>
       </form>
     </header>
 
-    <main id="panes" class="panes"></main>
+    <!-- tabs -->
+    <nav class="tabs">
+      <div class="tab-strip" id="tabs"></div>
+      <button id="new-tab" class="new-tab" title="New terminal (Ctrl+Shift+T)">+</button>
+      <span class="grow"></span>
+      <span class="grid" id="grid">—</span>
+    </nav>
+
+    <!-- terminals -->
+    <main id="panes" class="panes">
+      <!-- Shown while the socket is opening. The steps are the ones the server
+           actually performs, in the order it performs them. -->
+      <div id="connecting" class="connecting" hidden>
+        <div class="spinner-row">
+          <span class="spinner"></span>
+          <span>ESTABLISHING SECURE CHANNEL</span>
+        </div>
+        <div class="step">▸ verifying session token <span class="ok">ok</span></div>
+        <div class="step">▸ origin check <span class="ok">ok</span></div>
+        <div class="step">▸ spawning PTY<span class="dots"> …</span></div>
+      </div>
+    </main>
+
+    <!-- status -->
+    <footer class="status">
+      <span class="state" id="state"><span class="dot"></span><span id="state-text">connecting</span></span>
+      <span class="channel" id="channel">ws · pty</span>
+      <span class="session" id="session"></span>
+      <span class="shell" id="shell"></span>
+      <span class="transport" id="transport"></span>
+    </footer>
 
     <!-- No inline script: the CSP forbids it. -->
     <script src="/assets/vendor/xterm.js"></script>
