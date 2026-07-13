@@ -3,23 +3,6 @@
 Thanks for looking. This is a small, opinionated project: a single-user web terminal that
 takes authentication seriously. Contributions are genuinely welcome.
 
-## The most useful thing you can do right now
-
-**Build it natively on Windows and tell me what broke.**
-
-`facet` is written for Windows (ConPTY via `portable-pty`, WSL bash as the default shell,
-and dependencies deliberately chosen to avoid CMake and NASM) but it was developed from WSL,
-and **the native Windows build has never been compiled or run**. If you have a Windows box
-and ten minutes:
-
-```powershell
-cargo build --release
-.\target\release\facet.exe setup
-.\target\release\facet.exe run
-```
-
-Open an issue with whatever happens. Success is just as useful a report as failure.
-
 ## Getting set up
 
 ```bash

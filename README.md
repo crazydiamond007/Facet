@@ -4,6 +4,7 @@
 
 **A single-binary web terminal. Your shell, in a browser, behind real authentication.**
 
+[![CI](https://github.com/crazydiamond007/Facet/actions/workflows/ci.yml/badge.svg)](https://github.com/crazydiamond007/Facet/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#licence)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)](#building)
@@ -78,24 +79,29 @@ before pointing it at anything you care about.
 | Terminal, colour, resize, copy/paste | ✅ verified in a browser |
 | Login: argon2id + TOTP + TLS | ✅ verified in a browser |
 | Tabs, reattach, scrollback replay | ✅ verified in a browser |
-| Test suite | ✅ 49 tests, all green |
-| `clippy` + `rustfmt` | ✅ clean |
-| Linux / WSL2 | ✅ built, tested, used |
-| Docker (Linux) | ✅ image builds and runs |
-| **Windows native** | ⚠️ **written for, not yet validated** |
+| Linux / WSL2 | ✅ 49 tests green in CI |
+| **Windows native** | ✅ **43 tests green in CI, on real ConPTY** |
+| Docker (Linux) | ✅ image builds and runs in CI |
+| `clippy` + `rustfmt` + `cargo audit` | ✅ clean in CI |
 | Per-IP rate limiting | 🚧 lockout works; request throttling not yet wired |
 | External security review | ❌ none |
 
 The tests are not decoration. They boot a real server on a real port, log in with a real TOTP
-code, open real WebSockets, and drive a real shell. They have earned their keep: the
-reattach work shipped with two bugs that only execution could find (a closed tab that leaked
-its shell, and a WebSocket that could never observe its own terminal closing because it held
-the `Arc` keeping it alive). Both are fixed, and both now have a test naming the failure.
+code, open real WebSockets, and drive a real shell, on both Linux and Windows. They have
+earned their keep several times over. Three bugs in this codebase were found by running them
+and could not have been found any other way:
 
-The Windows path is deliberately designed to need no CMake and no NASM (`rustls` uses the
-`ring` provider, `jsonwebtoken` uses `rust_crypto`), so a plain MSVC toolchain should be
-enough. But development happened from WSL, and **the native Windows build has not yet been
-compiled or run**. If you try it, [tell me what happened](https://github.com/crazydiamond007/Facet/issues).
+* A closed tab leaked its shell: removing the terminal from the registry dropped our `Arc`,
+  but an attached socket held one too, so the child was never reaped.
+* A WebSocket could never observe its own terminal closing, because it waited for a channel
+  whose sender lived inside the very `Arc` it was holding. It was waiting on itself.
+* **On Windows, the pty never signalled EOF.** ConPTY keeps its output pipe open for as long
+  as the pseudoconsole exists, so closing the slave (which is all Unix needs) left the reader
+  blocked forever and every session hanging. The master has to be closed too.
+
+The Windows build needs no CMake and no NASM: `rustls` uses the `ring` provider and
+`jsonwebtoken` uses `rust_crypto`, so a plain MSVC toolchain is enough. CI compiles and tests
+it on `windows-latest` on every pull request.
 
 ## How it works
 
@@ -194,8 +200,6 @@ PowerShell instead, edit `facet.toml`:
 program = "powershell.exe"
 args = ["-NoLogo"]
 ```
-
-> ⚠️ Not yet validated. See [Project status](#project-status).
 
 ### Docker
 
@@ -484,17 +488,16 @@ having actually executed the line.
 
 ## Roadmap
 
-- [ ] Validate the native Windows build (**help wanted**)
+- [x] Validate the native Windows build (CI runs the suite on real ConPTY)
+- [x] CI: `fmt`, `clippy`, `cargo audit`, tests on Linux and Windows, Docker build
 - [ ] Per-IP rate limiting on the login endpoint (`tower_governor`)
-- [ ] CI: `clippy` + `fmt` + tests on Linux and Windows
 - [ ] Revocable sessions (token version, or a server-side session id)
 - [ ] Reconstruct alternate-screen state on reattach
 - [ ] Prebuilt binaries on the releases page
 
 ## Contributing
 
-Issues and PRs welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). The single most useful thing
-right now is **trying the native Windows build and telling me what broke.**
+Issues and PRs welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
