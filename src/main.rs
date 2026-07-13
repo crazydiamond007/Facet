@@ -94,7 +94,7 @@ async fn run(config_path: &Path) -> anyhow::Result<()> {
             .await
             .with_context(|| format!("could not bind {addr}"))?;
 
-            axum::serve(listener, service)
+        axum::serve(listener, service)
             .with_graceful_shutdown(shutdown_signal())
             .await
             .context("server error")?;

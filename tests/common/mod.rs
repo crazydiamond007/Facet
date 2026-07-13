@@ -158,6 +158,29 @@ pub async fn session_cookie(client: &reqwest::Client, server: &Server) -> String
         .expect("session cookie in the response")
 }
 
+/// Lines to type so the shell prints `<marker>42`.
+///
+/// The point is that the *output* differs textually from the keystrokes. A pty
+/// echoes what you type, so asserting on the text you sent proves nothing:
+/// `A42` can only appear once the shell has actually executed the line.
+///
+/// `cmd.exe` has no `$(( ))`, so on Windows the same trick takes two lines.
+pub fn arithmetic_probe(marker: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        vec!["set /a v=6*7".to_string(), format!("echo {marker}%v%")]
+    }
+    #[cfg(not(windows))]
+    {
+        vec![format!("echo {marker}$((6*7))")]
+    }
+}
+
+/// What [`arithmetic_probe`] makes the shell print.
+pub fn probe_output(marker: &str) -> String {
+    format!("{marker}42")
+}
+
 /// A shell that runs `script` and exits, portable across Windows and Unix.
 pub fn oneshot_shell(script: &str) -> Shell {
     #[cfg(windows)]

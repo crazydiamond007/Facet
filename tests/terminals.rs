@@ -1,4 +1,15 @@
 //! Terminals outlive their sockets: tabs, reattach, and scrollback replay.
+//!
+//! Unix-only, deliberately. These tests interrogate the shell in POSIX syntax
+//! (`$$` for its own pid, `VAR=value`, `$(( ))` arithmetic) in order to prove
+//! things that are otherwise hard to prove, above all that the *same process*
+//! survives a reconnect. `cmd.exe` has no equivalent of `$$` at all.
+//!
+//! What is not covered here on Windows is the shell dialect, not the code path:
+//! the registry under test is platform-independent Rust sitting on the same
+//! `pty` abstraction that `tests/pty.rs` and `tests/ws_bridge.rs` do exercise
+//! on Windows.
+#![cfg(unix)]
 
 mod common;
 
