@@ -40,10 +40,13 @@ pub fn router(state: AppState) -> Result<Router> {
     // (argon2, on purpose), so it is the only thing that gets a rate limiter.
     // Keeping it on its own router is what lets the limiter apply to it alone,
     // rather than throttling the terminal's own WebSocket traffic.
+    //
+    // `/logout` is deliberately *not* here. It is cheap, it touches no argon2,
+    // and putting it behind the same bucket means a throttled user cannot sign
+    // out: the one action you most want available to someone who thinks
+    // something is wrong.
     let login = limit::apply(
-        Router::new()
-            .route("/login", get(login::page).post(login::submit))
-            .route("/logout", post(login::logout)),
+        Router::new().route("/login", get(login::page).post(login::submit)),
         &state,
     )?;
 
@@ -53,6 +56,7 @@ pub fn router(state: AppState) -> Result<Router> {
     let app = Router::new()
         .merge(login)
         .route("/", get(assets::index))
+        .route("/logout", post(login::logout))
         .route("/assets/{*path}", get(assets::asset))
         .route("/ws", get(ws::handler))
         .route("/api/terminals", get(api::list))

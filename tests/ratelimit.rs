@@ -169,6 +169,35 @@ async fn the_terminal_is_not_throttled() {
 }
 
 #[tokio::test]
+async fn a_throttled_user_can_still_sign_out() {
+    // Signing out is cheap, touches no argon2, and is the one action you most
+    // want available to someone who thinks something is wrong. Sharing the login
+    // bucket with it would mean a throttled user cannot leave.
+    let server = serve_limited(1, false).await;
+    let client = common::client();
+
+    // Burn the login budget.
+    attempt(&client, &server, None).await;
+    assert_eq!(
+        attempt(&client, &server, None).await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the limiter should be engaged by now"
+    );
+
+    let response = client
+        .post(format!("http://{}/logout", server.addr))
+        .send()
+        .await
+        .expect("POST /logout");
+
+    assert_ne!(
+        response.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a throttled user was refused the ability to sign out"
+    );
+}
+
+#[tokio::test]
 async fn a_real_login_still_works_within_the_burst() {
     // The limiter must not lock the owner out of their own machine.
     let server = serve_limited(10, false).await;
