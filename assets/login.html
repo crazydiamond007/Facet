@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Sign in to facet</title>
+    <link rel="stylesheet" href="/assets/login.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+  </head>
+  <body>
+    <main class="card">
+      <h1><span class="mark">▚</span> facet</h1>
+      <p class="sub">Sign in to open a terminal.</p>
+
+      <!-- __ERROR__ is replaced server-side, and HTML-escaped on the way in. -->
+      <div class="error" hidden>__ERROR__</div>
+
+      <form method="post" action="/login" autocomplete="off">
+        <!-- Double-submit CSRF token; must match the facet_csrf cookie. -->
+        <input type="hidden" name="csrf" value="__CSRF_TOKEN__" />
+
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          autofocus
+        />
+
+        <label for="code">Authenticator code</label>
+        <input
+          id="code"
+          name="code"
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          placeholder="000000"
+          autocomplete="one-time-code"
+          required
+        />
+
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+    <script src="/assets/login.js"></script>
+  </body>
+</html>

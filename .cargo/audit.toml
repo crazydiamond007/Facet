@@ -1,0 +1,31 @@
+# cargo-audit configuration.
+#
+# An ignored advisory is a claim that we understand the risk and that it does
+# not apply. Each one below has to justify itself, and gets revisited whenever
+# the dependency moves.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack, a timing sidechannel in the `rsa` crate
+    # that can leak an RSA private key to an attacker who can observe the timing
+    # of RSA operations.
+    #
+    # Not exploitable here, because facet never performs an RSA operation.
+    #
+    # `rsa` is in the tree only because `jsonwebtoken`'s `rust_crypto` feature is
+    # an umbrella that pulls in RSA, P-256, P-384 and Ed25519 together; the
+    # feature cannot be narrowed, because jsonwebtoken requires one of
+    # `rust_crypto` / `aws_lc_rs` to select a crypto provider at all, and
+    # `aws_lc_rs` would mean CMake and NASM on the Windows build.
+    #
+    # facet signs and verifies session tokens with HS256 only (see
+    # src/auth/token.rs: `Algorithm::HS256`, and `Validation::new(HS256)` which
+    # refuses any other algorithm on the way back in). There are no RSA keys
+    # anywhere in the program, so the vulnerable code path is unreachable rather
+    # than merely unused.
+    #
+    # There is no patched release of `rsa` to upgrade to: upstream has no fix.
+    # Revisit if jsonwebtoken splits its features, or if `rsa` ships a
+    # constant-time implementation.
+    "RUSTSEC-2023-0071",
+]

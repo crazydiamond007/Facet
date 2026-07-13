@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>facet</title>
+    <link rel="stylesheet" href="/assets/vendor/xterm.css" />
+    <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">▚ facet</span>
+
+      <nav id="tabs" class="tabs">
+        <button id="new-tab" class="new-tab" title="New terminal (Ctrl+Shift+T)">+</button>
+      </nav>
+
+      <span id="status" class="status" data-state="connecting">connecting</span>
+      <span class="spacer"></span>
+      <span id="toast" class="toast" hidden></span>
+      <span class="hint">
+        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copy·paste
+        · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> new
+      </span>
+      <form method="post" action="/logout" class="logout">
+        <button type="submit" title="Sign out">sign out</button>
+      </form>
+    </header>
+
+    <main id="panes" class="panes"></main>
+
+    <!-- No inline script: the CSP forbids it. -->
+    <script src="/assets/vendor/xterm.js"></script>
+    <script src="/assets/vendor/addon-fit.js"></script>
+    <script src="/assets/vendor/addon-webgl.js"></script>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
