@@ -1,0 +1,11 @@
+target/
+docs/
+.git/
+.github/
+
+# Never let secrets into the build context.
+facet.toml
+certs/
+*.pem
+*.key
+*audit.log

@@ -1,0 +1,47 @@
+[package]
+name = "facet"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A single-binary web terminal: your shell in a browser, behind real authentication."
+repository = "https://github.com/crazydiamond007/Facet"
+readme = "README.md"
+keywords = ["terminal", "pty", "websocket", "shell", "web"]
+categories = ["command-line-utilities", "web-programming"]
+
+[dependencies]
+anyhow = "1.0.103"
+argon2 = { version = "0.5.3", features = ["std"] }
+axum = { version = "0.8.9", features = ["ws", "macros"] }
+axum-extra = { version = "0.12.6", features = ["cookie"] }
+axum-server = { version = "0.8.0", default-features = false, features = ["tls-rustls-no-provider"] }
+base64 = "0.22.1"
+bytes = "1.12.1"
+clap = { version = "4.6.1", features = ["derive"] }
+futures-util = "0.3.32"
+getrandom = "0.4.3"
+jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
+parking_lot = "0.12.5"
+portable-pty = "0.9.0"
+qr2term = "0.3.3"
+rcgen = { version = "0.14.8", features = ["pem"] }
+rpassword = "7.5.4"
+rust-embed = "8.12.0"
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+thiserror = "2.0.18"
+time = { version = "0.3.53", features = ["formatting"] }
+tokio = { version = "1.52.3", features = ["full"] }
+toml = "1.1.2"
+totp-rs = { version = "5.7.2", features = ["qr", "gen_secret"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.0", features = ["trace", "set-header", "limit"] }
+tower_governor = "0.8.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.23.5", features = ["v4"] }
+
+[dev-dependencies]
+reqwest = { version = "0.13.4", default-features = false, features = ["cookies", "form", "json"] }
+tokio-tungstenite = "0.30.0"

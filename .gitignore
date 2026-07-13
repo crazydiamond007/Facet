@@ -1,0 +1,25 @@
+/target
+
+# ---------------------------------------------------------------------------
+# Secrets. `facet setup` generates these; they must never be committed.
+#
+#   facet.toml   argon2 password hash, TOTP secret, JWT signing key
+#   certs/       TLS private key
+#   *audit.log   who logged in, from which IP, and when
+#
+# facet.example.toml is the redacted, committable template.
+# ---------------------------------------------------------------------------
+facet.toml
+*.facet.toml
+certs/
+*.pem
+*.key
+
+*audit.log
+*audit.log.*
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
