@@ -1,7 +1,32 @@
+
+
 /* facet: the design tokens, shared by the login page and the terminal.
  *
- * JetBrains Mono is vendored into the binary rather than loaded from Google
- * Fonts. Two reasons, and both are load-bearing:
+ * ## The font is JetBrains Mono *Nerd Font*, and that is not decoration
+ *
+ * A terminal's job is to render the bytes the shell sends. Modern shells send
+ * Nerd Font codepoints as a matter of course: `starship` draws powerline
+ * separators and language symbols, `eza --icons` puts a file-type glyph in
+ * front of every entry. Those arrive as terminal output like any other byte.
+ * Render them in a font that lacks the glyphs and the user sees a row of tofu
+ * boxes where their local terminal shows icons. That is not a styling
+ * shortfall, it is the terminal failing to reproduce its own output.
+ *
+ * So the vendored font is JetBrainsMono Nerd Font Mono, subsetted to what a
+ * terminal actually draws:
+ *
+ *   - latin, punctuation, arrows, maths
+ *   - box drawing, block elements, geometric shapes  (htop, lazygit, tmux)
+ *   - braille                                        (cargo/npm spinners)
+ *   - eza's complete icon table, starship's symbols, powerline separators
+ *
+ * The icon set is extracted from eza's own source and starship's default config
+ * rather than sampled from a directory listing, so a file type nobody has opened
+ * yet still renders rather than turning into a box. 1,921 glyphs, 184 KB across
+ * two weights. The icons are 45 KB of that per weight: they are detailed logo
+ * outlines, and there is no cheaper way to have them.
+ *
+ * ## Why it is vendored rather than fetched
  *
  *   1. The Content-Security-Policy is `default-src 'none'` with `font-src
  *      'self'`. A CDN font would simply be blocked.
@@ -9,24 +34,14 @@
  *      on load is not self-contained, and would not render at all on the
  *      air-gapped or tunnel-only machines this is built for.
  *
- * The design also called for a Nerd Font, for powerline glyphs in the prompt.
- * That is deliberately not vendored: those glyphs come from whatever the user's
- * own shell emits, the fonts are several megabytes, and the terminal renders
- * the bytes the shell actually sends rather than a mock-up of them.
+ * Two weights, because that is all anything uses: xterm asks for normal and
+ * bold, and the chrome only ever sets 400 or 700.
  */
 
 @font-face {
   font-family: "JetBrains Mono";
   src: url("/assets/vendor/fonts/jetbrains-mono-400.woff2") format("woff2");
   font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("/assets/vendor/fonts/jetbrains-mono-500.woff2") format("woff2");
-  font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
