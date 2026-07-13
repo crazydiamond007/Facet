@@ -54,6 +54,14 @@ enum ServerMsg {
     Error {
         message: String,
     },
+    /// The session behind this socket was signed out or expired.
+    ///
+    /// Distinct from `error` because the client must react differently: a plain
+    /// close makes it reconnect, and reconnecting with a dead session just earns
+    /// it a 401 on a loop. This tells it to stop and go and sign in.
+    SessionEnded {
+        reason: &'static str,
+    },
 }
 
 impl ServerMsg {
@@ -212,7 +220,7 @@ async fn bridge(
     // event fires, because it is tied to this guard's Drop.
     let _closed = TerminalClosed {
         ip,
-        session,
+        session: session.clone(),
         terminal: terminal.id.clone(),
         exit_code: parking_lot::Mutex::new(None),
     };
@@ -224,28 +232,35 @@ async fn bridge(
         "attached"
     );
 
-    let result = pump(
-        socket,
-        &terminal,
-        &state.config.shell.program,
-        attachment,
-        &_closed,
-    )
-    .await;
+    let result = pump(socket, &terminal, &state, &session, attachment, &_closed).await;
 
     // Dropping `attachment` (inside `pump`) detaches but leaves the shell
     // running, which is the whole point: the next connection reattaches.
     result
 }
 
+/// How often an established socket re-checks that its session still exists.
+///
+/// The cookie is checked once, at the upgrade, and then never again: a WebSocket
+/// sends no further headers, so without this the socket would outlive both its
+/// own expiry and an explicit sign-out.
+///
+/// This interval *is* the window in which a revoked session keeps its shell, so
+/// it wants to be short. The check is one hashmap lookup, so there is no cost
+/// pushing back: five seconds is chosen to be small, not to be affordable.
+const SESSION_CHECK: std::time::Duration = std::time::Duration::from_secs(5);
+
 async fn pump(
     socket: WebSocket,
     terminal: &Terminal,
-    shell: &str,
+    state: &AppState,
+    session: &str,
     mut attachment: Attachment,
     closed: &TerminalClosed,
 ) -> Result<()> {
     let (mut sink, mut stream) = socket.split();
+
+    let mut session_check = tokio::time::interval(SESSION_CHECK);
 
     // Tell the client which terminal it is talking to, then replay what it
     // missed. Order matters: the id must arrive before the bytes, so the client
@@ -253,7 +268,7 @@ async fn pump(
     let replay = std::mem::take(&mut attachment.replay);
     let announce = ServerMsg::Attached {
         terminal: terminal.id.clone(),
-        shell: shell.to_owned(),
+        shell: state.config.shell.program.clone(),
         replayed: replay.len(),
     };
 
@@ -267,6 +282,25 @@ async fn pump(
 
     loop {
         tokio::select! {
+            // Still signed in? Asked on a timer because nothing else will tell
+            // us: the browser sends no headers on an open socket, so a sign-out
+            // in another tab, or the token simply lapsing, would otherwise leave
+            // this shell attached to a session that no longer exists.
+            //
+            // The shell itself is left running. This detaches the *socket*, and
+            // the terminal stays in the registry, so signing back in reattaches
+            // to the same shell rather than losing the work in it.
+            _ = session_check.tick() => {
+                if !state.auth.is_live(session) {
+                    tracing::info!(terminal = %terminal.id, "session ended; detaching socket");
+
+                    let msg = ServerMsg::SessionEnded { reason: "signed out or expired" };
+                    let _ = sink.send(msg.into_frame()).await;
+                    let _ = sink.send(Message::Close(None)).await;
+                    return Ok(());
+                }
+            }
+
             live = attachment.next_output() => {
                 match live {
                     Ok(bytes) => {

@@ -138,10 +138,20 @@ pub async fn submit(
     }
 }
 
-/// POST /logout: drop the cookie. The JWT itself stays valid until it expires
-/// (that is the cost of a stateless token), but the browser no longer holds it.
+/// POST /logout: revoke the session, then drop the cookie.
+///
+/// The order is not cosmetic. Clearing the cookie only takes the token away from
+/// *this browser*; revoking it takes the token away from everyone, including
+/// whoever copied it out of dev tools. A logout that does only the first is a
+/// logout in appearance only, and that is exactly what this used to be.
+///
+/// Revocation also reaches sessions that are already mid-flight: an open
+/// terminal WebSocket asks the registry whether it is still welcome, so signing
+/// out closes the shell you left running rather than leaving it attached to a
+/// session that no longer exists.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
     if let Some(claims) = state.auth.session(&jar) {
+        state.auth.revoke(&claims.jti);
         audit::log(Event::Logout {
             session: claims.jti,
         });
