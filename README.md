@@ -11,11 +11,11 @@
 
 </div>
 
-<!-- TODO(screenshot): hero shot of the terminal UI. Add once the UI is final:
-     <div align="center">
-       <img src="docs/media/terminal.png" alt="facet running a bash shell in a browser" width="820">
-     </div>
--->
+<div align="center">
+  <img src="docs/media/terminal.png" alt="facet running a bash shell in a browser: tab bar, eza file-type icons rendering correctly, and a status bar showing the live connection, session and grid size" width="880">
+  <br>
+  <sub>A real shell. Those are <code>eza --icons</code> glyphs, not a mock-up.</sub>
+</div>
 
 ---
 
@@ -64,8 +64,14 @@ excellent and you should use that instead.
   and environment.
 - **An audit log.** Every login (success *and* failure) and every terminal open/close, with
   a timestamp and an IP, as JSON lines.
-- **One binary.** `rust-embed` compiles the HTML, CSS, JS and xterm.js into the executable.
-  Copy it to a machine and run it.
+- **Your shell's glyphs actually render.** `starship` emits powerline separators, `eza --icons`
+  puts a file-type glyph in front of every entry, and both arrive as ordinary terminal output.
+  A terminal that draws them as tofu boxes is not styling things differently, it is failing to
+  reproduce its own output. facet embeds a subsetted **JetBrainsMono Nerd Font Mono** (1,921
+  glyphs, 184 KB) covering eza's complete icon table, starship's symbols, powerline separators,
+  and the box drawing and braille that `htop`, `lazygit` and every cargo spinner are made of.
+- **One binary.** `rust-embed` compiles the HTML, CSS, JS, xterm.js and the font into the
+  executable. Copy it to a machine and run it.
 
 ## Project status
 
@@ -79,8 +85,8 @@ before pointing it at anything you care about.
 | Terminal, colour, resize, copy/paste | ✅ verified in a browser |
 | Login: argon2id + TOTP + TLS | ✅ verified in a browser |
 | Tabs, reattach, scrollback replay | ✅ verified in a browser |
-| Linux / WSL2 | ✅ 49 tests green in CI |
-| **Windows native** | ✅ **43 tests green in CI, on real ConPTY** |
+| Linux / WSL2 | ✅ 63 tests green in CI |
+| **Windows native** | ✅ **56 tests green in CI, on real ConPTY** |
 | Docker (Linux) | ✅ image builds and runs in CI |
 | `clippy` + `rustfmt` + `cargo audit` | ✅ clean in CI |
 | Per-IP rate limiting on login | ✅ 6 tests, incl. header-spoofing |
@@ -88,8 +94,8 @@ before pointing it at anything you care about.
 
 The tests are not decoration. They boot a real server on a real port, log in with a real TOTP
 code, open real WebSockets, and drive a real shell, on both Linux and Windows. They have
-earned their keep several times over. Three bugs in this codebase were found by running them
-and could not have been found any other way:
+earned their keep several times over. Four bugs in this codebase were found by running them,
+or by looking at what they rendered, and could not have been found any other way:
 
 * A closed tab leaked its shell: removing the terminal from the registry dropped our `Arc`,
   but an attached socket held one too, so the child was never reaped.
@@ -98,6 +104,11 @@ and could not have been found any other way:
 * **On Windows, the pty never signalled EOF.** ConPTY keeps its output pipe open for as long
   as the pseudoconsole exists, so closing the slave (which is all Unix needs) left the reader
   blocked forever and every session hanging. The master has to be closed too.
+* **Signing out did not sign you out.** The `__Host-` cookie prefix is enforced by the browser:
+  a deletion sent without `Secure` is rejected outright, so the session survived and the
+  terminal stayed reachable. The hardening measure broke the thing it was hardening. It slipped
+  through 55 tests because the harness served plaintext, which is the one configuration where
+  the bug cannot occur.
 
 The Windows build needs no CMake and no NASM: `rustls` uses the `ring` provider and
 `jsonwebtoken` uses `rust_crypto`, so a plain MSVC toolchain is enough. CI compiles and tests
@@ -172,11 +183,14 @@ your password and the six-digit code from your authenticator app.
 a screenshot or a clipboard. Scan it with Google Authenticator, Aegis, 1Password, Bitwarden,
 anything that speaks TOTP.
 
-<!-- TODO(screenshot): the login page. Add once the UI is final:
-     <div align="center">
-       <img src="docs/media/login.png" alt="the facet login page" width="520">
-     </div>
--->
+<div align="center">
+  <img src="docs/media/login.png" alt="the facet sign-in page: password step" width="290">
+  <img src="docs/media/totp.png" alt="the authenticator code step, six digit cells" width="290">
+  <img src="docs/media/locked.png" alt="the lockout card, counting down" width="290">
+  <br>
+  <sub>Password, then the authenticator code. The lockout card counts down from the
+  server's real remaining time, not a number the page invented.</sub>
+</div>
 
 ### Windows (native)
 
@@ -237,8 +251,12 @@ CMake and no NASM** anywhere in it.
 | macOS | Xcode command-line tools |
 | Windows | MSVC toolchain (Visual Studio Build Tools → "Desktop development with C++") |
 
-There is **no Node.js build step.** `xterm.js` and its addons are vendored in
-`assets/vendor/` and embedded at compile time.
+There is **no Node.js build step.** `xterm.js`, its addons and the font are vendored in
+`assets/vendor/` and embedded at compile time; `cargo build` is the whole story.
+
+(`tools/build-font.mjs` uses npm, but only to *regenerate* the vendored font subset. You never
+need to run it to build or run facet. See [`tools/README.md`](tools/README.md) if you want to
+change which glyphs are included.)
 
 ### The main crates, and why
 
@@ -254,6 +272,7 @@ There is **no Node.js build step.** `xterm.js` and its addons are vendored in
 | [`rcgen`](https://crates.io/crates/rcgen) | generates the self-signed certificate during `setup` |
 | [`tower-http`](https://crates.io/crates/tower-http) | security headers, body limits, tracing |
 | [`xterm.js`](https://xtermjs.org/) | the terminal emulator in the browser (vendored, not npm) |
+| [JetBrainsMono Nerd Font](https://www.nerdfonts.com/) | subsetted and embedded, so `eza` and `starship` glyphs render instead of tofu |
 
 ## Configuration
 
