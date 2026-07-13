@@ -14,6 +14,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod pty;
+pub mod screen;
 pub mod setup;
 pub mod state;
 pub mod terminal;
