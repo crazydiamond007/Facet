@@ -92,7 +92,12 @@ impl Signer {
     }
 }
 
-fn unix_now() -> Result<u64> {
+/// Seconds since the unix epoch.
+///
+/// Fallible, and callers must treat the error as "not authenticated" rather than
+/// papering over it with a default: a clock we cannot read is a clock we cannot
+/// check an expiry against.
+pub fn unix_now() -> Result<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

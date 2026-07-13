@@ -16,6 +16,10 @@ pub const PASSWORD: &str = "correct horse battery staple";
 pub struct Server {
     pub addr: SocketAddr,
     pub totp_secret: String,
+    /// The server's own state, so a test can assert on what the *server*
+    /// believes (which terminals exist, which sessions are live) rather than
+    /// inferring it from what the HTTP surface is willing to admit.
+    pub state: AppState,
 }
 
 impl Server {
@@ -67,7 +71,7 @@ pub async fn serve(config: Config, totp_secret: String) -> Server {
     let addr = listener.local_addr().expect("local addr");
 
     let state = AppState::new(config).expect("build state");
-    let app = facet::web::router(state)
+    let app = facet::web::router(state.clone())
         .expect("build router")
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -75,7 +79,11 @@ pub async fn serve(config: Config, totp_secret: String) -> Server {
         let _ = axum::serve(listener, app).await;
     });
 
-    Server { addr, totp_secret }
+    Server {
+        addr,
+        totp_secret,
+        state,
+    }
 }
 
 /// Boot with default credentials and an interactive shell. The common case.

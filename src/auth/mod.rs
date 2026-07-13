@@ -2,6 +2,7 @@
 //! cookie. Everything a request path needs is behind [`Authenticator`].
 
 pub mod password;
+pub mod sessions;
 pub mod token;
 pub mod totp;
 
@@ -108,6 +109,9 @@ pub struct Authenticator {
     lockout: Mutex<Lockout>,
     /// Highest TOTP time-step accepted so far; blocks replay. See `totp`.
     last_totp_step: Mutex<u64>,
+    /// The sessions we have issued and not yet revoked. A valid signature is
+    /// necessary but not sufficient: see [`sessions`].
+    sessions: sessions::Sessions,
     /// Whether cookies get the `Secure` attribute and the `__Host-` prefix.
     /// False only for plaintext loopback development.
     secure_cookies: bool,
@@ -126,6 +130,7 @@ impl Authenticator {
                 duration: Duration::from_secs(config.lockout_minutes.saturating_mul(60)),
             }),
             last_totp_step: Mutex::new(0),
+            sessions: sessions::Sessions::default(),
             secure_cookies,
         })
     }
@@ -181,6 +186,12 @@ impl Authenticator {
                     // wrong password cannot be used to consume the owner's
                     // codes and lock them out of their own authenticator.
                     *self.last_totp_step.lock() = matched_step;
+
+                    // The token is worthless until it is here: `session` will
+                    // not honour a jti the registry has never heard of.
+                    self.sessions
+                        .register(claims.jti.clone(), claims.exp, claims.iat);
+
                     Outcome::Ok {
                         token,
                         jti: claims.jti,
@@ -204,9 +215,42 @@ impl Authenticator {
     }
 
     /// Pull a session out of the cookie jar, if there is a valid one.
+    ///
+    /// Two checks, and the second one is the one that took work. The signature
+    /// proves the token is ours and unexpired. The registry proves it has not
+    /// been *signed out*, which the token itself cannot tell us: a JWT that has
+    /// been revoked looks exactly like one that has not.
+    ///
+    /// Every authenticated route funnels through here (the `Authenticated`
+    /// extractor, the index redirect, `/api`, the WebSocket upgrade), which is
+    /// why revocation only had to be implemented once.
     pub fn session(&self, jar: &CookieJar) -> Option<token::Claims> {
         let raw = jar.get(self.cookie_name())?.value();
-        self.signer.verify(raw)
+        let claims = self.signer.verify(raw)?;
+
+        self.is_live(&claims.jti).then_some(claims)
+    }
+
+    /// Whether a session id is still one we honour.
+    ///
+    /// Separate from [`Self::session`] because the WebSocket has no cookie jar
+    /// to re-read: once the socket is upgraded the browser never sends another
+    /// header, so the bridge holds the `jti` and asks us about it on a timer.
+    pub fn is_live(&self, jti: &str) -> bool {
+        // A clock we cannot read is a clock we cannot check an expiry against,
+        // so refuse rather than guess.
+        let Ok(now) = token::unix_now() else {
+            tracing::error!("could not read the system clock; refusing the session");
+            return false;
+        };
+
+        self.sessions.is_live(jti, now)
+    }
+
+    /// Sign a session out. Returns false if it was already gone, so the caller
+    /// does not write an audit record for a logout that logged nothing out.
+    pub fn revoke(&self, jti: &str) -> bool {
+        self.sessions.revoke(jti)
     }
 }
 

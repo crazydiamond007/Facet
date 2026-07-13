@@ -224,6 +224,13 @@ class Tab {
       this.exited = true;
       this.setState("exited");
       this.term.write(`\r\n\x1b[38;2;234;105;98m[${message.message}]\x1b[0m\r\n`);
+    } else if (message.type === "session_ended") {
+      // Signed out (perhaps in another tab) or the token lapsed. `exited` first,
+      // or `onclose` schedules a reconnect that can only ever earn a 401, and
+      // the page sits there retrying forever instead of saying what happened.
+      this.exited = true;
+      this.setState("exited");
+      this.app.sessionEnded(message.reason);
     }
   }
 
@@ -475,6 +482,32 @@ class App {
       this.sessionEl.textContent = previous;
       this.renderStatus();
     }, 2600);
+  }
+
+  /**
+   * The server revoked our session. Every tab is now dead, so tear them all
+   * down and go to the login page.
+   *
+   * Guarded, because the tabs report this independently: with four terminals
+   * open, four sockets each say the session is gone, and without the flag the
+   * page would try to navigate four times.
+   */
+  sessionEnded(reason) {
+    if (this._ending) return;
+    this._ending = true;
+
+    for (const tab of this.tabs) tab.exited = true;
+
+    // Long enough to read, short enough not to feel stuck. The line lands in
+    // the terminal the user is actually looking at.
+    this.toast(reason || "session ended");
+    if (this.active) {
+      this.active.term.write(
+        `\r\n\x1b[38;2;234;105;98m[session ended · returning to sign in]\x1b[0m\r\n`,
+      );
+    }
+
+    setTimeout(() => location.assign("/login"), 1200);
   }
 }
 

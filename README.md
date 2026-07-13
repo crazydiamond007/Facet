@@ -389,18 +389,19 @@ next visit. Clicking the **×** on a tab closes it for real and kills the shell.
   (`SameSite=Strict`, the `Origin` check, and the CSRF token).
 - An offline attack on a stolen `facet.toml` (argon2id, salted, tuned).
 - Session-cookie theft via XSS (`httpOnly`, plus a CSP that forbids inline script at all).
+- **A stolen session token, once you sign out.** Signing out revokes the token itself, not
+  just your browser's copy of it, so a token captured from a dev tools pane or a proxy log
+  stops working the moment you click sign out. See "Sessions" below.
 
 **What it does *not* stop. Please read this part**
 
 - **Anyone who authenticates gets a shell as the user running `facet`.** That is the entire
   purpose. There is no sandbox, no restricted command set, no sudo gate. Run it as a user
   whose privileges you are willing to hand to whoever holds your password and TOTP seed.
-- **`logout` does not revoke the token.** The JWT is stateless: the cookie is dropped from
-  your browser, but a copy of that token remains valid until it expires (12h by default). To
-  kill every session, rotate `auth.jwt_secret` and restart.
-- **An established WebSocket outlives token expiry.** The token is checked at upgrade, not
-  continuously, so a shell opened at hour 0 keeps running past the session TTL. To terminate
-  live sessions, restart the process.
+- **A stolen session token, while you are still signed in.** Revocation is something you have
+  to *do*. Until you sign out, a copy of the token is a working key to the shell, so the
+  cookie is `httpOnly`, `Secure`, `SameSite=Strict` and `__Host-` prefixed to make getting a
+  copy as hard as the browser allows.
 - **The lockout is global, not per-IP.** Per-IP is useless against an attacker who rotates
   addresses, but the cost is that anyone who can reach your login page can lock *you* out
   for `lockout_minutes`. This is the single strongest argument for a tunnel over a public
@@ -421,6 +422,29 @@ next visit. Clicking the **×** on a tab closes it for real and kills the shell.
   the signing key.
 - **No protection against you.** If you `rm -rf` something through the terminal, that is the
   feature working correctly.
+
+### Sessions
+
+Signing in issues a JWT in a `__Host-` prefixed, `httpOnly`, `Secure`, `SameSite=Strict`
+cookie. A JWT is self-contained, which is what makes it cheap to check and, on its own,
+impossible to take back: anyone holding a copy can prove it is authentic without asking the
+server, so deleting the cookie only takes the token away from *your browser*.
+
+So facet keeps a registry of live sessions, and a token is honoured only while its `jti` is
+in it. Signing out removes it, which revokes the token everywhere at once rather than just
+locally. An open terminal re-checks its own session every five seconds, so signing out also
+closes shells that are already running, including ones in other tabs or other browsers.
+
+Two consequences worth knowing:
+
+- **Restarting facet signs you out.** The registry is in memory. This is deliberate, and it
+  is why the registry is an allowlist rather than a list of revoked tokens: a revocation list
+  that empties on restart would quietly bring every revoked token back to life, whereas an
+  empty allowlist honours nothing. The worst a restart can do is ask you for your password.
+- **Signing out does not kill your shells.** The socket detaches, the shell keeps running,
+  and signing back in reattaches to it with its scrollback intact. Terminals outliving their
+  sockets is the same property that lets you close a laptop lid and come back to your work.
+  Use the tab's close button to actually end a shell.
 
 ### Exposing it safely
 
