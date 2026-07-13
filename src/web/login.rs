@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::audit::{self, Event};
 use crate::auth::Outcome;
 use crate::state::AppState;
+use crate::web::limit::client_ip;
 
 /// Double-submit CSRF cookie. Readable by JS on purpose. The defence is that
 /// an attacker on another origin cannot *read* it to copy into the form body,
@@ -50,10 +51,14 @@ pub async fn page(State(state): State<AppState>, jar: CookieJar) -> Response {
 pub async fn submit(
     State(state): State<AppState>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    headers: axum::http::HeaderMap,
     jar: CookieJar,
     Form(form): Form<LoginForm>,
 ) -> Response {
-    let ip = peer.ip();
+    // Not simply `peer.ip()`: behind a tunnel that is 127.0.0.1 for everyone,
+    // and an audit log that answers "who logged in, from where" with "localhost"
+    // every time is not answering the question.
+    let ip = client_ip(&headers, peer, state.config.server.trust_forwarded_for);
 
     // CSRF first: the cookie the browser sent must match the field in the body.
     // A cross-origin form can cause the cookie to ride along, but cannot read

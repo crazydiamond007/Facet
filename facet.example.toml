@@ -19,10 +19,24 @@ port = 7443
 # need it.
 allowed_origins = []
 
-# Append-only JSON-lines audit log: every login (success and failure) and every
-# terminal open/close, with a timestamp and an IP. Comment out to log to stdout
-# only.
+# Append-only JSON-lines audit log: every login (success, failure, throttled) and
+# every terminal open/close, with a timestamp and an IP. Comment out to log to
+# stdout only.
 audit_log = "facet-audit.log"
+
+# Take the client's IP from X-Forwarded-For / X-Real-IP instead of the TCP peer.
+#
+# Only turn this on when a proxy you control sits in front of facet and
+# overwrites the header. Anyone who can reach facet directly can put whatever
+# they like in X-Forwarded-For: with this on and no proxy, an attacker gets a
+# fresh rate-limit bucket on every request just by changing the header, and the
+# audit log faithfully records whatever IP they invented.
+#
+# With it off (the default) behind a tunnel, every request appears to come from
+# 127.0.0.1: rate limiting collapses into a single shared bucket, and the audit
+# log records the tunnel rather than the caller. That is the trade, which is why
+# this is a decision and not a default.
+trust_forwarded_for = false
 
 [shell]
 # What to run. The default is platform-specific:
@@ -53,6 +67,26 @@ env = []
 enabled = true
 cert = "certs/cert.pem"
 key = "certs/key.pem"
+
+[rate_limit]
+# Per-IP throttling on the login endpoint.
+#
+# This is not the brute-force defence; auth.max_failed_attempts is. This exists
+# because verifying a password is *deliberately* expensive (argon2 burns tens of
+# milliseconds on purpose), so an unauthenticated flood of login attempts is a
+# cheap way to pin a CPU and starve the terminals the machine is there to serve.
+# The limiter refuses the flood before it reaches argon2 at all.
+#
+# Only the login endpoint is throttled. The terminal's own WebSocket traffic is
+# not, because throttling it would throttle the thing the program is for.
+enabled = true
+
+# Seconds to earn back one attempt.
+per_seconds = 2
+
+# How many attempts can be made back to back. Generous enough for a human
+# fumbling a TOTP code, useless for a script.
+burst = 10
 
 [terminals]
 # Cap on concurrent shells, so a runaway client cannot exhaust the machine by
