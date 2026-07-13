@@ -15,7 +15,7 @@
 //!   scrollback happen under one lock, so a reconnecting client sees every byte
 //!   exactly once: no gap, no duplicate.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime};
@@ -28,6 +28,7 @@ use tokio::sync::broadcast;
 use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::pty::{self, Size};
+use crate::screen::Screen;
 
 pub type Id = String;
 
@@ -55,9 +56,10 @@ pub struct Terminal {
 }
 
 struct Shared {
-    /// Recent output, replayed on attach. Capped; oldest bytes fall off.
-    scrollback: VecDeque<u8>,
-    scrollback_cap: usize,
+    /// What a reattaching client must be sent to catch up: the scrollback, plus
+    /// a reconstruction of any full-screen program currently running. See
+    /// [`crate::screen`] for why replaying the raw bytes is not enough.
+    screen: Screen,
     /// `None` once this terminal is finished.
     ///
     /// Dropping the sender is what tells every attached socket the terminal is
@@ -69,15 +71,14 @@ struct Shared {
 }
 
 impl Shared {
-    /// Append to scrollback and fan out to attached sockets, as one atomic
-    /// step. `attach` takes the same lock, which is what makes replay exact.
+    /// Absorb a chunk and fan it out to attached sockets, as one atomic step.
+    /// `attach` takes the same lock, which is what makes replay exact.
+    ///
+    /// Sockets that are already attached get the raw bytes, untouched: they have
+    /// been following along and their screens are already in step. Only a client
+    /// arriving late needs the reconstruction.
     fn publish(&mut self, chunk: Bytes) {
-        self.scrollback.extend(chunk.iter().copied());
-
-        let overflow = self.scrollback.len().saturating_sub(self.scrollback_cap);
-        if overflow > 0 {
-            self.scrollback.drain(..overflow);
-        }
+        self.screen.ingest(&chunk);
 
         if let Some(live) = &self.live {
             // Err means nothing is attached right now. That is normal, not a
@@ -120,6 +121,15 @@ impl Attachment {
 impl Attachment {
     pub fn pty(&self) -> &pty::Pty {
         &self.terminal.pty
+    }
+
+    /// Resize the terminal: the pty *and* the emulator behind it.
+    ///
+    /// Both, always. Telling only the pty would leave the emulator holding a
+    /// screen of the old shape, and the next client to reattach would be sent a
+    /// reconstruction at the wrong size.
+    pub fn resize(&self, size: Size) -> Result<()> {
+        self.terminal.resize(size)
     }
 }
 
@@ -177,8 +187,7 @@ impl Manager {
             created: SystemTime::now(),
             pty: session.pty,
             shared: Mutex::new(Shared {
-                scrollback: VecDeque::new(),
-                scrollback_cap: limits.scrollback_bytes,
+                screen: Screen::new(size, limits.scrollback_bytes),
                 live: Some(live),
             }),
             attachments: AtomicUsize::new(0),
@@ -320,7 +329,7 @@ impl Terminal {
         let (live, replay) = {
             let shared = self.shared.lock();
             let live = shared.live.as_ref().map(broadcast::Sender::subscribe);
-            let replay = Bytes::from_iter(shared.scrollback.iter().copied());
+            let replay = Bytes::from(shared.screen.replay());
             (live, replay)
         };
 
@@ -332,5 +341,12 @@ impl Terminal {
             replay,
             live,
         }
+    }
+
+    /// Resize the pty and keep the emulator in step with it.
+    pub fn resize(&self, size: Size) -> Result<()> {
+        self.pty.resize(size)?;
+        self.shared.lock().screen.resize(size);
+        Ok(())
     }
 }

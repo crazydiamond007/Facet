@@ -207,7 +207,7 @@ async fn bridge(
     let attachment = terminal.attach();
 
     // The browser window may be a different size than it was last time.
-    attachment.pty().resize(size)?;
+    attachment.resize(size)?;
 
     audit::log(Event::TerminalOpened {
         ip,
@@ -386,7 +386,7 @@ fn control(attachment: &Attachment, text: &str) -> Result<()> {
         ClientMsg::Resize { cols, rows } => {
             let size = Size { cols, rows }.sanitized();
             tracing::trace!(cols = size.cols, rows = size.rows, "resize");
-            attachment.pty().resize(size)
+            attachment.resize(size)
         }
     }
 }

@@ -151,7 +151,7 @@ because xterm has a *stateful* UTF-8 decoder: a multi-byte character split acros
 WebSocket frames still renders correctly. Decoding each frame in JavaScript would corrupt
 exactly that case.
 
-### The three details that are easy to get backwards
+### The four details that are easy to get backwards
 
 Each of these is a bug if you invert it, and each cost real debugging to get right:
 
@@ -164,6 +164,14 @@ Each of these is a bug if you invert it, and each cost real debugging to get rig
 3. **Attach is atomic.** Subscribing to the live output stream and snapshotting the
    scrollback happen under one lock, so a reconnecting client sees every byte exactly once:
    no gap, no duplicate.
+4. **A reattaching client is sent a reconstructed screen, not a recording.** `vim`, `htop`
+   and `less` paint the *alternate screen* once and then send only the differences. A ring
+   buffer of recent bytes evicts that first paint before anything else, so replaying the
+   bytes hands the client a stream of diffs against a screen it never had. facet runs a real
+   terminal emulator (`vt100`) server-side, so it can redraw the current screen from nothing,
+   however long ago it was painted. Alternate-screen output is also kept *out* of the
+   scrollback, exactly as a real terminal keeps it out: you cannot scroll back through vim
+   after you quit it, and you should not be able to here either.
 
 ## Quick start
 
@@ -540,9 +548,6 @@ having actually executed the line.
 
 ## Known limitations
 
-- **Reconnecting inside a full-screen app can render oddly.** Scrollback replay is raw ANSI,
-  so if you disconnect while in `vim` or `htop`, the alternate-screen state is not
-  reconstructed. `Ctrl`+`L` (or `:redraw!`) fixes it.
 - **Single user.** By design: one password, one TOTP seed, one shell identity.
 - **No session sharing or read-only observers.** Two browsers attached to the same terminal
   will fight over it.
@@ -552,9 +557,10 @@ having actually executed the line.
 - [x] Validate the native Windows build (CI runs the suite on real ConPTY)
 - [x] CI: `fmt`, `clippy`, `cargo audit`, tests on Linux and Windows, Docker build
 - [x] Per-IP rate limiting on the login endpoint (`tower_governor`)
-- [ ] Revocable sessions (token version, or a server-side session id)
-- [ ] Reconstruct alternate-screen state on reattach
+- [x] Revocable sessions (a server-side registry of live session ids)
+- [x] Reconstruct alternate-screen state on reattach
 - [ ] Prebuilt binaries on the releases page
+- [ ] Session sharing, or read-only observers
 
 ## Contributing
 
