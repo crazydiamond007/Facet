@@ -22,9 +22,40 @@ pub struct Config {
     pub tls: Tls,
     #[serde(default)]
     pub terminals: Terminals,
+    #[serde(default)]
+    pub rate_limit: RateLimit,
     /// Absent until `facet setup` has run. Without it the server refuses to
     /// start: there is no anonymous mode, by design.
     pub auth: Option<Auth>,
+}
+
+/// Per-IP throttling on the login endpoint.
+///
+/// This is not the brute-force defence; the lockout in [`Auth`] is. This exists
+/// because verifying a password costs real CPU on purpose (argon2 is tuned to
+/// take tens of milliseconds), so an unauthenticated flood of login attempts is
+/// a cheap way to pin a core and starve the terminal sessions the machine is
+/// actually there to serve. The limiter refuses that flood before it reaches
+/// argon2 at all.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct RateLimit {
+    pub enabled: bool,
+    /// Seconds to earn back one attempt.
+    pub per_seconds: u64,
+    /// How many attempts may be made back to back before the refill rate bites.
+    /// Generous enough for a human fumbling a TOTP code, useless for a script.
+    pub burst: u32,
+}
+
+impl Default for RateLimit {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            per_seconds: 2,
+            burst: 10,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -68,6 +99,23 @@ pub struct Server {
     /// Where to append the audit log. `None` logs to stdout only.
     #[serde(default)]
     pub audit_log: Option<PathBuf>,
+
+    /// Take the client's IP from `X-Forwarded-For` / `X-Real-IP` rather than
+    /// from the TCP peer.
+    ///
+    /// **Only turn this on when a proxy you control is in front of facet**, and
+    /// that proxy overwrites the header rather than appending to it. Anyone who
+    /// can reach facet directly can put whatever they like in `X-Forwarded-For`:
+    /// with this on and no proxy, an attacker gets a fresh rate-limit bucket on
+    /// every request simply by changing the header, and the audit log records
+    /// whatever IP they felt like claiming.
+    ///
+    /// With it off (the default) behind a tunnel, every request looks like it
+    /// came from 127.0.0.1: rate limiting collapses to one shared bucket, and
+    /// the audit log records the tunnel rather than the caller. That is the
+    /// trade, and it is why this is a decision rather than a default.
+    #[serde(default)]
+    pub trust_forwarded_for: bool,
 }
 
 impl Default for Server {
@@ -77,6 +125,7 @@ impl Default for Server {
             port: 7443,
             allowed_origins: Vec::new(),
             audit_log: None,
+            trust_forwarded_for: false,
         }
     }
 }
@@ -280,6 +329,23 @@ impl Config {
                  tunnel in front (see the README).",
                 self.server.bind
             )));
+        }
+
+        // 3. A rate limiter configured with zeroes is not a rate limiter. Fail
+        //    loudly rather than silently serving with the control disabled.
+        if self.rate_limit.enabled {
+            if self.rate_limit.per_seconds == 0 {
+                return Err(Error::Config(
+                    "rate_limit.per_seconds is 0, which would let the bucket refill instantly \
+                     and disable the limiter"
+                        .into(),
+                ));
+            }
+            if self.rate_limit.burst == 0 {
+                return Err(Error::Config(
+                    "rate_limit.burst is 0, which would refuse every request".into(),
+                ));
+            }
         }
 
         Ok(())

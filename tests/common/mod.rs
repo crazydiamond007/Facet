@@ -67,7 +67,9 @@ pub async fn serve(config: Config, totp_secret: String) -> Server {
     let addr = listener.local_addr().expect("local addr");
 
     let state = AppState::new(config).expect("build state");
-    let app = facet::web::router(state).into_make_service_with_connect_info::<SocketAddr>();
+    let app = facet::web::router(state)
+        .expect("build router")
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     tokio::spawn(async move {
         let _ = axum::serve(listener, app).await;

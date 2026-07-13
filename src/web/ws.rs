@@ -29,6 +29,7 @@ use crate::error::Result;
 use crate::pty::Size;
 use crate::state::AppState;
 use crate::terminal::{Attachment, Terminal};
+use crate::web::limit::client_ip;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -104,7 +105,7 @@ pub async fn handler(
     headers: HeaderMap,
     Query(params): Query<Params>,
 ) -> Response {
-    let ip = peer.ip();
+    let ip = client_ip(&headers, peer, state.config.server.trust_forwarded_for);
 
     if !origin_allowed(&headers, &state) {
         audit::log(Event::UpgradeRejected {

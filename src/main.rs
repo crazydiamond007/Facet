@@ -73,7 +73,7 @@ async fn run(config_path: &Path) -> anyhow::Result<()> {
     }
 
     let state = AppState::new(config).context("building application state")?;
-    let app = web::router(state);
+    let app = web::router(state).context("building the router")?;
 
     // ConnectInfo gives the audit log a peer address to record.
     let service = app.into_make_service_with_connect_info::<SocketAddr>();
