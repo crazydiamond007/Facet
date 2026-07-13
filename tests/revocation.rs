@@ -25,6 +25,9 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::header;
 
+type Socket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
 /// A client that does not follow redirects and keeps no cookies, so every
 /// request below carries exactly the credential we hand it and nothing else.
 fn bare_client() -> reqwest::Client {
@@ -57,10 +60,7 @@ async fn logout(server: &common::Server, token: &str) {
 async fn open_terminal(
     server: &common::Server,
     token: &str,
-) -> Result<
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
-    tokio_tungstenite::tungstenite::Error,
-> {
+) -> Result<Socket, tokio_tungstenite::tungstenite::Error> {
     let mut request = format!("ws://{}/ws?cols=80&rows=24", server.addr)
         .into_client_request()
         .expect("build request");
@@ -166,6 +166,32 @@ async fn an_open_terminal_is_detached_when_the_session_is_signed_out() {
     );
 }
 
+/// Read the socket until the shell prints its prompt.
+///
+/// Two things must happen here or a Windows run types into the void. ConPTY will
+/// not proceed until something answers its cursor-position query, which a real
+/// terminal does by reflex and a test has to do by hand; and `cmd.exe` is not
+/// reading input the moment ConPTY hands it over, so keystrokes sent before the
+/// prompt are dropped on the floor.
+async fn wait_for_prompt(socket: &mut Socket) {
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let mut seen = String::new();
+        while let Some(Ok(message)) = socket.next().await {
+            if let Message::Binary(bytes) = message {
+                if common::wants_cursor_report(&bytes) {
+                    let _ = socket.send(Message::Binary(common::DSR_REPLY.into())).await;
+                }
+                seen.push_str(&String::from_utf8_lossy(&bytes));
+                if seen.contains(common::PROMPT) {
+                    return;
+                }
+            }
+        }
+    })
+    .await
+    .expect("the shell never printed a prompt");
+}
+
 #[tokio::test]
 async fn a_live_session_is_not_disturbed_by_the_session_check() {
     // The check runs every few seconds against every open socket. If it were
@@ -178,13 +204,21 @@ async fn a_live_session_is_not_disturbed_by_the_session_check() {
         .await
         .expect("socket should open");
 
-    // Comfortably more than one check interval.
+    wait_for_prompt(&mut socket).await;
+
+    // Sit still for comfortably longer than one check interval. Nothing should
+    // arrive, and in particular the session must not be declared over.
     let ended = tokio::time::timeout(Duration::from_secs(12), async {
         while let Some(Ok(message)) = socket.next().await {
-            if let Message::Text(text) = message
-                && text.contains("session_ended")
-            {
-                return true;
+            match message {
+                Message::Text(text) if text.contains("session_ended") => return true,
+                // Keep answering ConPTY even while idling: swallowing its query
+                // here would leave cmd.exe wedged and the probe below typing
+                // into a shell that is not listening.
+                Message::Binary(bytes) if common::wants_cursor_report(&bytes) => {
+                    let _ = socket.send(Message::Binary(common::DSR_REPLY.into())).await;
+                }
+                _ => {}
             }
         }
         false
@@ -196,26 +230,29 @@ async fn a_live_session_is_not_disturbed_by_the_session_check() {
         "the session check killed a session that was still perfectly valid"
     );
 
-    // And the shell is still there and still listening.
-    socket
-        .send(Message::Binary(b"echo A$((6*7))Z\r".to_vec().into()))
-        .await
-        .expect("send");
+    // And the shell is still there and still listening. The probe is built by
+    // the harness because `cmd.exe` has no `$(( ))`: hardcoding shell syntax
+    // here is exactly how this test failed on Windows the first time.
+    for line in common::arithmetic_probe("A") {
+        socket
+            .send(Message::Binary(format!("{line}\r").into_bytes().into()))
+            .await
+            .expect("send");
+    }
 
+    let expected = common::probe_output("A");
     let saw = tokio::time::timeout(Duration::from_secs(15), async {
         let mut seen = String::new();
         while let Some(Ok(message)) = socket.next().await {
             match message {
                 Message::Binary(bytes) => {
-                    // ConPTY will not proceed until something answers its
-                    // cursor-position query; a real terminal does it by reflex.
                     if common::wants_cursor_report(&bytes) {
                         let _ = socket.send(Message::Binary(common::DSR_REPLY.into())).await;
                     }
                     seen.push_str(&String::from_utf8_lossy(&bytes));
                     // Not the text we sent: a pty echoes keystrokes, so matching
                     // on the command would pass even if the shell were dead.
-                    if seen.contains("A42Z") {
+                    if seen.contains(&expected) {
                         return true;
                     }
                 }
