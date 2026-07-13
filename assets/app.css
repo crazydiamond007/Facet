@@ -1,241 +1,199 @@
-:root {
-  --bg: #0d1117;
-  --bar: #161b22;
-  --line: #21262d;
-  --fg: #c9d1d9;
-  --dim: #6e7681;
-  --ok: #3fb950;
-  --warn: #d29922;
-  --bad: #f85149;
-  --accent: #58a6ff;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  height: 100%;
-  margin: 0;
-}
+/* The terminal. Tokens come from theme.css. */
 
 body {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
-  color: var(--fg);
-  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
+  background: var(--panel);
+  font-size: 13px;
 }
 
-.bar {
+.grow {
+  flex: 1;
+}
+
+/* ---- top bar ---- */
+
+.chrome {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-  padding: 0 10px;
+  gap: 12px;
+  flex: none;
   height: 38px;
-  background: var(--bar);
+  padding: 0 12px;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   user-select: none;
 }
 
-.brand {
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+.lock {
+  color: var(--green-soft);
+  flex: none;
 }
 
-.spacer {
+.address {
   flex: 1;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scheme,
+.path {
+  color: var(--dim);
+}
+
+.host {
+  color: var(--fg);
+}
+
+.signout button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.signout button:hover {
+  color: var(--red);
 }
 
 /* ---- tabs ---- */
 
 .tabs {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: stretch;
+  flex: none;
+  height: 34px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+
+.tab-strip {
+  display: flex;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.tabs::-webkit-scrollbar {
+.tab-strip::-webkit-scrollbar {
   display: none;
 }
 
 .tab {
-  display: inline-flex;
+  display: flex;
+  flex: none;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px 4px 7px;
-  max-width: 160px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
+  gap: 8px;
+  padding: 0 12px;
+  max-width: 220px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
   color: var(--dim);
-  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .tab:hover {
-  background: #1c2129;
   color: var(--fg);
 }
 
 .tab.active {
-  background: var(--bg);
-  border-color: var(--line);
+  background: var(--panel);
   color: var(--fg);
+  /* The design's green underline, drawn on the inside so it does not shift the
+     row's height. */
+  box-shadow: inset 0 2px 0 var(--green);
 }
 
-/* Connection state, per tab. */
+/* The dot is the tab's connection state, not decoration. */
 .tab .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--dim);
-  flex: 0 0 auto;
+  font-size: 8px;
+  color: var(--faint);
 }
 
 .tab[data-state="open"] .dot {
-  background: var(--ok);
+  color: var(--green-soft);
 }
+
 .tab[data-state="connecting"] .dot {
-  background: var(--warn);
+  color: var(--orange);
 }
+
 .tab[data-state="closed"] .dot {
-  background: var(--bad);
+  color: var(--red);
 }
+
 .tab[data-state="exited"] .dot {
-  background: var(--dim);
+  color: var(--faint);
+}
+
+.tab .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tab .close {
   margin-left: 2px;
-  padding: 0 3px;
-  border-radius: 4px;
-  color: var(--dim);
+  color: var(--faint);
   font-size: 14px;
-  line-height: 1;
 }
 
 .tab .close:hover {
-  background: #30363d;
-  color: var(--fg);
+  color: var(--red);
 }
 
 .new-tab {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
+  flex: none;
+  padding: 0 14px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
   color: var(--dim);
-  font: inherit;
-  font-size: 15px;
+  font-family: inherit;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
 }
 
 .new-tab:hover {
-  background: #1c2129;
-  color: var(--fg);
+  color: var(--green);
 }
 
-/* ---- status, hints ---- */
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.grid {
+  align-self: center;
+  padding-right: 14px;
+  color: #5a6067;
   font-size: 11px;
-  color: var(--dim);
-  white-space: nowrap;
-}
-
-.status::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status[data-state="connecting"] {
-  color: var(--warn);
-}
-.status[data-state="open"] {
-  color: var(--ok);
-}
-.status[data-state="closed"] {
-  color: var(--bad);
-}
-
-.toast {
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #1c2129;
-  color: var(--accent);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.hint {
-  color: var(--dim);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-kbd {
-  padding: 1px 4px;
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  background: #0d1117;
-  font: inherit;
-  font-size: 10px;
-}
-
-.logout button {
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dim);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.logout button:hover {
-  color: var(--fg);
-  border-color: #30363d;
 }
 
 /* ---- panes ---- */
 
-/* `min-height: 0` is what lets a flex child actually shrink; without it the
-   fit addon measures the pane as taller than the viewport. */
+/* `min-height: 0` is what lets a flex child actually shrink; without it the fit
+   addon measures the pane as taller than the viewport and the last rows fall
+   off the bottom. */
 .panes {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
 }
 
-/* Inactive panes stay in the DOM (their terminals keep their buffers) but are
-   hidden. `visibility` rather than `display:none` would still reserve layout;
-   we want them out of the flow entirely. */
+/* Inactive panes stay in the DOM so their terminals keep their buffers, but are
+   taken out of the flow entirely. */
 .pane {
   display: none;
   position: absolute;
   inset: 0;
-  padding: 6px 0 6px 8px;
+  padding: 12px 14px;
 }
 
 .pane.active {
@@ -246,11 +204,127 @@ kbd {
   height: 100%;
 }
 
-.xterm-viewport::-webkit-scrollbar {
-  width: 10px;
+/* ---- connecting ---- */
+
+.connecting {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 18px;
+  background: var(--panel);
+  line-height: 1.7;
 }
 
-.xterm-viewport::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 5px;
+.spinner-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 12px;
+  color: var(--green);
+  letter-spacing: 1.5px;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.step {
+  color: var(--dim);
+}
+
+.ok {
+  color: var(--green-soft);
+}
+
+.dots {
+  animation: dot 1.2s infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dot {
+  0%,
+  20% {
+    opacity: 0.25;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.25;
+  }
+}
+
+/* ---- status bar ---- */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--dim);
+  user-select: none;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.state .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.state[data-state="open"] {
+  color: var(--green-soft);
+}
+
+.state[data-state="open"] .dot {
+  background: var(--green-soft);
+}
+
+.state[data-state="connecting"] {
+  color: var(--orange);
+}
+
+.state[data-state="connecting"] .dot {
+  background: var(--orange);
+}
+
+.state[data-state="closed"] {
+  color: var(--red);
+}
+
+.state[data-state="closed"] .dot {
+  background: var(--red);
+}
+
+.session {
+  flex: 1;
+  text-align: center;
+  color: #5a6067;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }

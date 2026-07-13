@@ -1,0 +1,122 @@
+
+
+/* facet: the design tokens, shared by the login page and the terminal.
+ *
+ * ## The font is JetBrains Mono *Nerd Font*, and that is not decoration
+ *
+ * A terminal's job is to render the bytes the shell sends. Modern shells send
+ * Nerd Font codepoints as a matter of course: `starship` draws powerline
+ * separators and language symbols, `eza --icons` puts a file-type glyph in
+ * front of every entry. Those arrive as terminal output like any other byte.
+ * Render them in a font that lacks the glyphs and the user sees a row of tofu
+ * boxes where their local terminal shows icons. That is not a styling
+ * shortfall, it is the terminal failing to reproduce its own output.
+ *
+ * So the vendored font is JetBrainsMono Nerd Font Mono, subsetted to what a
+ * terminal actually draws:
+ *
+ *   - latin, punctuation, arrows, maths
+ *   - box drawing, block elements, geometric shapes  (htop, lazygit, tmux)
+ *   - braille                                        (cargo/npm spinners)
+ *   - eza's complete icon table, starship's symbols, powerline separators
+ *
+ * The icon set is extracted from eza's own source and starship's default config
+ * rather than sampled from a directory listing, so a file type nobody has opened
+ * yet still renders rather than turning into a box. 1,921 glyphs, 184 KB across
+ * two weights. The icons are 45 KB of that per weight: they are detailed logo
+ * outlines, and there is no cheaper way to have them.
+ *
+ * ## Why it is vendored rather than fetched
+ *
+ *   1. The Content-Security-Policy is `default-src 'none'` with `font-src
+ *      'self'`. A CDN font would simply be blocked.
+ *   2. "One self-contained binary" is the whole premise. A UI that phones a CDN
+ *      on load is not self-contained, and would not render at all on the
+ *      air-gapped or tunnel-only machines this is built for.
+ *
+ * Two weights, because that is all anything uses: xterm asks for normal and
+ * bold, and the chrome only ever sets 400 or 700.
+ */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/vendor/fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/vendor/fonts/jetbrains-mono-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* surfaces */
+  --bg: #0b0d10;
+  --panel: #0f1216;
+  --line: #1e242b;
+  --line-strong: #262c33;
+
+  /* text */
+  --fg: #cfe8d0;
+  --dim: #6b8a6f;
+  --faint: #4d5359;
+
+  /* accents */
+  --green: #5fd75f;
+  --green-soft: #8ae08a;
+  --red: #ea6962;
+  --orange: #e78a4e;
+  --blue: #7daea3;
+  --aqua: #89b482;
+  --magenta: #d3869b;
+
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+}
+
+::selection {
+  background: rgb(95 215 95 / 0.28);
+  color: #d6f5d6;
+}
+
+:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 1px;
+}
+
+/* Scrollbars, so the terminal's own scrollback matches the chrome. */
+* {
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 2px solid var(--panel);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

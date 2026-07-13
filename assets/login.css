@@ -1,114 +1,281 @@
-:root {
-  --bg: #0d1117;
-  --card: #161b22;
-  --line: #21262d;
-  --fg: #c9d1d9;
-  --dim: #8b949e;
-  --accent: #58a6ff;
-  --bad: #f85149;
-}
-
-* {
-  box-sizing: border-box;
-}
+/* The sign-in screen. Tokens come from theme.css. */
 
 body {
   display: grid;
   place-items: center;
-  min-height: 100vh;
-  margin: 0;
   padding: 24px;
-  background:
-    radial-gradient(1200px 600px at 50% -20%, #1b2534 0%, transparent 60%),
-    var(--bg);
-  color: var(--fg);
-  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+.auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 364px;
+}
+
+/* ---- brand ---- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 7px;
+  color: var(--green);
+}
+
+.wordmark {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 9px;
+  padding-left: 3px;
+}
+
+.tagline {
+  margin: 0 0 30px;
+  font-size: 10.5px;
+  letter-spacing: 2.5px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+/* ---- card ---- */
 
 .card {
   width: 100%;
-  max-width: 340px;
-  padding: 28px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 16px 48px rgb(0 0 0 / 0.45);
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
 }
 
-h1 {
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: 0.01em;
-}
-
-.mark {
-  color: var(--accent);
-}
-
-.sub {
-  margin: 4px 0 22px;
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 1.5px;
   color: var(--dim);
-  font-size: 13px;
 }
 
-.error {
-  margin-bottom: 16px;
-  padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
-  color: #ffb4ae;
-  font-size: 13px;
+/* Positioned, so the hidden code input below is absolute *within the card*
+   rather than against the viewport. */
+.card-body {
+  position: relative;
+  padding: 24px 22px 20px;
 }
+
+.online {
+  color: var(--green-soft);
+  font-size: 10px;
+}
+
+.muted {
+  color: var(--dim);
+  font-size: 10px;
+}
+
+/* ---- fields ---- */
 
 label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 9px;
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
   color: var(--dim);
-  font-size: 12px;
-  font-weight: 500;
+  text-transform: uppercase;
 }
 
-input {
+input[type="password"],
+input[type="text"] {
   width: 100%;
-  margin-bottom: 16px;
-  padding: 9px 11px;
-  background: #0d1117;
-  border: 1px solid var(--line);
-  border-radius: 7px;
+  padding: 11px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
   color: var(--fg);
-  font: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 2px;
 }
 
 input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--green);
 }
 
-#code {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 18px;
-  letter-spacing: 0.35em;
-  text-align: center;
+input::placeholder {
+  color: var(--faint);
 }
 
-button {
-  width: 100%;
-  padding: 10px;
+/* ---- the six code cells ----
+ *
+ * Decoration over a single real input. Six separate fields would fight the
+ * password manager, break paste, and make backspace behave oddly; one input
+ * with the cells drawn behind it keeps the browser's own behaviour intact.
+ */
+
+.cells {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cell {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  font-size: 22px;
+  color: var(--fg);
+}
+
+.cell.filled {
+  border-color: var(--line-strong);
+}
+
+.cell.active {
+  border-color: var(--green);
+}
+
+/* The real input sits behind the cells: it carries focus, the caret, paste and
+   autofill, while the cells are pure presentation.
+ *
+ * `input.code-input` rather than `.code-input`, because the `input[type="text"]`
+ * rule above is *more specific* (0,1,1 vs 0,1,0) and would otherwise win. It
+ * did, and the result was an absolutely-positioned element that kept
+ * `width: 100%` and sized itself against the viewport instead of the card,
+ * blowing out the grid track and shoving the whole page off its left edge. */
+input.code-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  border-radius: 7px;
-  background: var(--accent);
-  color: #04121f;
-  font: inherit;
-  font-weight: 600;
+  opacity: 0;
+}
+
+/* ---- buttons ---- */
+
+.primary {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
-button:hover {
-  filter: brightness(1.08);
+.primary:hover {
+  background: rgb(95 215 95 / 0.12);
 }
 
-button:active {
+.primary:active {
   transform: translateY(1px);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--fg);
+}
+
+.back {
+  margin-top: 16px;
+}
+
+/* ---- footers, errors ---- */
+
+.card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--dim);
+}
+
+.card-foot.column {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.7;
+}
+
+.grow {
+  flex: 1;
+}
+
+.sep {
+  color: var(--faint);
+}
+
+.good {
+  color: var(--green-soft);
+}
+
+.error {
+  margin: 11px 0 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.error::before {
+  content: "✗ ";
+}
+
+/* ---- locked ---- */
+
+.locked {
+  border-color: #3a2a2a;
+}
+
+.card-head.bad {
+  border-bottom-color: #2c1f1f;
+  color: var(--red);
+}
+
+.locked-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.countdown {
+  margin: 0 0 18px;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--green);
+}
+
+/* ---- hint ---- */
+
+.hint {
+  margin-top: 16px;
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.5px;
+}
+
+.hint code {
+  color: var(--dim);
+  font-family: inherit;
 }

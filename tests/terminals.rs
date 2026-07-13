@@ -211,6 +211,37 @@ fn digits_after(haystack: &str, marker: &str) -> Option<String> {
 }
 
 #[tokio::test]
+async fn the_server_says_which_shell_it_started() {
+    // The status bar reports the shell. It has to come from the server, or it is
+    // a guess: the shell is configurable, and the browser cannot know it.
+    let server = common::serve_default().await;
+    let client = common::client();
+    let cookie = common::session_cookie(&client, &server).await;
+
+    let mut socket = connect(&server, &cookie, None).await;
+
+    let announced = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(Ok(msg)) = socket.next().await {
+            if let Message::Text(text) = msg {
+                let value: serde_json::Value = serde_json::from_str(&text).expect("json");
+                if value["type"] == "attached" {
+                    return value["shell"].as_str().map(str::to_owned);
+                }
+            }
+        }
+        None
+    })
+    .await
+    .expect("timed out")
+    .expect("the attach message carried no shell");
+
+    assert!(
+        announced.contains("sh"),
+        "expected the configured shell, got {announced:?}"
+    );
+}
+
+#[tokio::test]
 async fn several_terminals_run_at_once_and_are_independent() {
     let server = common::serve_default().await;
     let client = common::client();
